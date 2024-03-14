@@ -236,7 +236,7 @@ const Tokenizer = struct {
             self.line_no += 1;
         }
 
-        try self.tokens.append(Token{ .type = .EOF });
+        try self.tokens.append(.{ .type = .EOF });
     }
 
     fn deinit(self: *Tokenizer) void {
@@ -249,9 +249,184 @@ const Tokenizer = struct {
 ////////////////////////////////////////////
 
 
-const AstParser = struct {
+////////////////////////////////////////////
+////          AST PARSER BEGIN          ////
+////////////////////////////////////////////
+
+// program : procedure+
+// procedure : stmtLst
+// stmtLst : stmt+
+// stmt : assign | call | while | if
+// assign : variable expr
+// expr : plus | minus | times | ref
+// plus : expr expr
+// minus : expr expr
+// times : expr expr
+// ref : variable | constant
+// while: variable stmtLst
+// if : variable stmtLst stmtLst
+
+const NodeType = enum {
+    PROGRAM,    // root node (aggregates procedures)
+
+    PROCEDURE,  // aggregates STATEMENTS
+
+    // STATEMENTS
+    ASSIGN,     //
+    CALL,       
+    WHILE,
+    IF,
+
+    EXPR,
+
+    ADD,
+    SUB,
+    MUL,
+};
+const Node = struct {
+    type: NodeType,
+    // parent index
+    parent_index: u32,
+    // index into children in AstParser.nodes
+    children_index: u32,
+    // attributes (mostly procedure names, var names, constant values)
+    value: ?[]u8 = null,
+    // in case node is statement
+    statement_id: u32 = 0,
 };
 
+const AstParser = struct {
+    tokens: []u8,
+
+    arena_allocator: std.heap.ArenaAllocator,
+
+    nodes: std.ArrayList(Node),
+
+    current_token: i32 = 0,
+    current_statement: i32 = 1,
+    current_parrent_index: u32 = 0,
+
+    error_flag: bool = false,
+
+    pub fn init(internal_allocator: std.mem.Allocator, tokens: []u8) !*AstParser {
+        var self = try internal_allocator.create(AstParser);
+        self.tokens = tokens;
+        self.arena_allocator = std.heap.ArenaAllocator.init(internal_allocator);
+        self.tokens = std.ArrayList(AstParser).init(self.arena_allocator.allocator());
+        self.current_token = 0;
+        self.current_statement = 1;
+        self.error_flag = false;
+        return self;
+    }
+
+    fn onError(self: *AstParser, message: []const u8) void {
+        self.error_flag = true;
+
+        if (getCurrentToken().metadata) |token_metadata| {
+            const line_until_column = token_metadata.line[0..@intCast(token_metadata.column_no)];
+            const line_after_column = token_metadata.line[@intCast(token_metadata.column_no + 1)..];
+            const char_in_column = token_metadata.line[@intCast(token_metadata.column_no)..@intCast(token_metadata.column_no + 1)];
+
+            std.log.err("Error at {}:{}: {s}\n\t{s}[{s}]{s}", .{
+                token_metadata.line_no, token_metadata.column_no + 1, message,
+                line_until_column, char_in_column, line_after_column,
+            });
+        } else {
+            std.log.err("Error at ?:?: {s}\n\t??????", .{message});             
+        }
+    }
+
+    fn getCurrentToken(self: *AstParser) Token {
+        return self.tokens[@intCast(self.current_token)];
+    }
+    fn getCurrentTokenOffset(self: *AstParser, offset: i32) Token {
+        return self.tokens[@intCast(self.current_token + offset)];
+    }
+
+    pub fn parseAssignment(self: *AstParser) bool {
+        const modified_var_token = self.getCurrentToken();
+        self.current_token += 1;
+        if (self.current_token < self.tokens.len and self.getCurrentToken().type == .ASSIGN) {
+            self.current_token += 1;
+            
+
+        } else {
+            self.onError("Assignment statement must consist of '=' and expression.");
+            return false;
+        }
+    }
+    pub fn parseCall(self: *AstParser) void {}
+    pub fn parseIf(self: *AstParser) void {}
+    pub fn parseWhile(self: *AstParser) void {}
+
+    pub fn parseStatementList(self: *AstParser) bool {
+        while (self.current_token < self.tokens.len) {
+            const token = self.getCurrentToken();
+            if (token.type == .RIGHT_BRACE) {
+                self.current_token += 1;
+                return true;
+            } else {
+                const result = switch (token.type) {
+                    .NAME   => self.parseAssignment(),
+                    .CALL   => self.parseCall(),
+                    .IF     => self.parseIf(),
+                    .WHILE  => self.parseWhile(),
+                    else => blk: {
+                        self.onError("Valid statements are only assignements, calls, ifs and while loops.");
+                        break :blk false;
+                    },
+                };
+                if (!result) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    pub fn parse(self: *AstParser) void {
+        // append root node first
+        self.nodes.append(.{
+            .type = .PROGRAM,
+            .children_index = 1,
+            .value = null,
+            .id = 0,
+        })
+        while (self.current_token < self.tokens.len) {
+            if (self.getCurrentToken().type == .PROCEDURE and self.current_token + 1 < self.tokens.len) {
+                self.current_token += 1;
+                if (self.getCurrentToken().type == .NAME and self.current_token + 1 < self.tokens.len) {
+                    const name_token = self.getCurrentToken();
+                    self.current_token += 1;
+                    if (self.getCurrentToken().type == .LEFT_BRACE) {
+                        if (self.current_token + 1 < self.tokens.len) {
+                            self.current_token += 1;
+                            self.nodes.append(.{
+                                .type = .PROCEDURE,
+                                .children_index = self.current_token,
+                                .value = name_token.value[0..],
+                                .id = 0, // procedure is not a statement
+                            });
+                            if (!self.parseStatementList()) {
+                                break;
+                            }
+                        } else {
+                            self.onError("Procedure definition must contain at least one statement and end with a '}'.");
+                        }
+                    } else {
+                        self.onError("Procedure definition must begin with a '{'.");
+                    }
+                } else {
+                    self.onError("Procedure declaration must consist of a keyword, name and definition must start from '{'.");
+                }
+            } else {
+                self.onError("Program can consist only of procedures beginning with 'procedure' keyword and a name.");
+            }
+        }
+    }
+};
+////////////////////////////////////////////
+////           AST PARSER END           ////
+////////////////////////////////////////////
 
 pub fn main() !void {}
 
