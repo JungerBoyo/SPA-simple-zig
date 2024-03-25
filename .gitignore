@@ -2,3 +2,5 @@
 zig-cache/
 zig-out/
 SPA-simple-zig.code-workspace
+cs_src/bin
+cs_src/obj

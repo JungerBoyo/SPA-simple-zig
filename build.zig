@@ -24,6 +24,16 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const lib_spa_api = b.addSharedLibrary(.{
+        .name = "simple-spa",
+        .root_source_file = .{ .path = "src/spa_api.zig" },
+        .target = target,
+        .optimize = optimize,
+        .version = .{ .major = 0, .minor = 1, .patch = 0 },
+    });
+
+    b.installArtifact(lib_spa_api);
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
