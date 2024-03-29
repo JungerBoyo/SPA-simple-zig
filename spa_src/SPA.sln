@@ -2,6 +2,10 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPA", "SPA\SPA.csproj", "{AAE5613B-169D-424A-8BBC-6E2BE83FC25B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPA.PQL", "SPA.PQL\SPA.PQL.csproj", "{066671D8-C0D5-4F01-8D6A-722F10D2F01E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPA.PQL.Tests", "SPA.PQL.Tests\SPA.PQL.Tests.csproj", "{1CA1CF86-17B7-4EEA-8FAE-5635BAE1FC7E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +16,13 @@ Global
 		{AAE5613B-169D-424A-8BBC-6E2BE83FC25B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AAE5613B-169D-424A-8BBC-6E2BE83FC25B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AAE5613B-169D-424A-8BBC-6E2BE83FC25B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{066671D8-C0D5-4F01-8D6A-722F10D2F01E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{066671D8-C0D5-4F01-8D6A-722F10D2F01E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{066671D8-C0D5-4F01-8D6A-722F10D2F01E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{066671D8-C0D5-4F01-8D6A-722F10D2F01E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1CA1CF86-17B7-4EEA-8FAE-5635BAE1FC7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1CA1CF86-17B7-4EEA-8FAE-5635BAE1FC7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1CA1CF86-17B7-4EEA-8FAE-5635BAE1FC7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1CA1CF86-17B7-4EEA-8FAE-5635BAE1FC7E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
