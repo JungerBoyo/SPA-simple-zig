@@ -31,17 +31,18 @@ fn getAST(simple_src: []const u8) !*AST {
     return try parser.parse();
 }
 pub fn main() !void {
-   const simple = 
+    const simple = 
     \\procedure Second {
     \\  x = 0;
     \\  i = 5;
-    \\  while i {
-    \\      x = x + 2 * y;
-    \\      call Third;
-    \\      i = i - 1;
-    \\  }
     \\  if x then {
     \\      x = x + 1;
+    \\      while i {
+    \\          x = x + 2 * y;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { i = 1; } else { i = 2; }
+    \\      }
     \\  } else {
     \\      z = 1;
     \\  }
@@ -54,15 +55,7 @@ pub fn main() !void {
     var ast = try getAST(simple[0..]);
     defer ast.deinit();
 
-    try std.testing.expect(!ast.parent(1, 2));
-    try std.testing.expect(!ast.parent(2, 3));
-    try std.testing.expect(ast.parent(3, 4));
-    try std.testing.expect(ast.parent(3, 5));
-    try std.testing.expect(ast.parent(3, 6));
-    try std.testing.expect(!ast.parent(3, 7));
-    try std.testing.expect(ast.parent(7, 8));
-    try std.testing.expect(ast.parent(7, 9));
-    try std.testing.expect(!ast.parent(7, 10));
+    try std.testing.expect(ast.parentTransitive(3, 12));
 
 }
 

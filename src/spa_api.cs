@@ -16,4 +16,8 @@ public class SpaApi {
     public static extern uint Follows(uint s1, uint s2);
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
     public static extern uint FollowsTransitive(uint s1, uint s2);
+    [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint Parent(uint s1, uint s2);
+    [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint ParentTransitive(uint s1, uint s2);
 }
