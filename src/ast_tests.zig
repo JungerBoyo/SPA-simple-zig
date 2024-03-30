@@ -62,3 +62,55 @@ test "follows" {
     try std.testing.expect(!ast.follows(12, 13));
 }
 
+test "follows*" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  while i {
+    \\      x = x + 2 * y;
+    \\      call Third;
+    \\      i = i - 1;
+    \\  }
+    \\  if x then {
+    \\      x = x + 1;
+    \\  } else {
+    \\      z = 1;
+    \\  }
+    \\  z = z + x + i;
+    \\  y = z + 2;
+    \\  x = x * y + z;
+    \\}
+    ;
+
+    var ast = try getAST(simple[0..]);
+    defer ast.deinit();
+
+    try std.testing.expect(ast.followsTransitive(1, 2));
+    try std.testing.expect(ast.followsTransitive(2, 3));
+    try std.testing.expect(ast.followsTransitive(1, 3));
+    try std.testing.expect(!ast.followsTransitive(3, 4));
+    try std.testing.expect(ast.followsTransitive(4, 5));
+    try std.testing.expect(ast.followsTransitive(5, 6));
+    try std.testing.expect(!ast.followsTransitive(6, 7));
+    try std.testing.expect(ast.followsTransitive(3, 7));
+    try std.testing.expect(!ast.followsTransitive(7, 8));
+    try std.testing.expect(!ast.followsTransitive(8, 9));
+    try std.testing.expect(ast.followsTransitive(7, 10));
+    try std.testing.expect(ast.followsTransitive(10, 11));
+    try std.testing.expect(ast.followsTransitive(11, 12));
+    try std.testing.expect(!ast.followsTransitive(12, 13));
+
+    try std.testing.expect(ast.followsTransitive(1, 10));
+    try std.testing.expect(ast.followsTransitive(1, 11));
+    try std.testing.expect(ast.followsTransitive(1, 12));
+
+    try std.testing.expect(ast.followsTransitive(3, 10));
+    try std.testing.expect(ast.followsTransitive(3, 11));
+    try std.testing.expect(ast.followsTransitive(3, 12));
+
+    try std.testing.expect(!ast.followsTransitive(8, 9));
+    try std.testing.expect(ast.followsTransitive(4, 6));
+    try std.testing.expect(!ast.followsTransitive(4, 8));
+}
+

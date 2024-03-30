@@ -39,3 +39,33 @@ pub fn follows(self: *Self, s1: u32, s2: u32) bool {
     }
     return false;
 }
+
+pub fn followsTransitive(self: *Self, s1: u32, s2: u32) bool {
+    var s1_index: usize = for (self.nodes, 0..) |s1_node, i| {
+        if (s1_node.metadata) |metadata| {
+            if (metadata.statement_id == s1) {
+                break i;
+            }
+        }
+    } else 0;
+
+    if (s1_index == 0) {
+        return false;
+    }
+
+    const s1_parent_index = self.nodes[s1_index].parent_index;
+
+    for (self.nodes[(s1_index + 1)..]) |s2_node| {
+        if (s2_node.parent_index == s1_parent_index) {
+            if (s2_node.metadata) |metadata| {
+                if (metadata.statement_id == s2) {
+                    return true;
+                } 
+            }
+        } else {
+            // early exit if left given parent's "children region"
+            return false;
+        }
+    } 
+    return false;
+}
