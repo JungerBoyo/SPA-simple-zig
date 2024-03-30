@@ -1,6 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using SPA.PQL.Abstractions;
+using SPA.PQL.Enums;
 using SPA.PQL.Exceptions;
 using SPA.PQL.QueryElements;
 
@@ -9,9 +10,10 @@ using SPA.PQL.QueryElements;
 namespace SPA.PQL.Parser {
     internal class PQLParser {
         private readonly StringSplitOptions _tripOptions = StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries;
-        private const string SuchThatRegex = "such\\s+that";
-        private const string With = "with";
-        private const string Pattern = "pattern";
+        internal const string SuchThatRegex = "such\\s+that";
+        internal const string That = "that";
+        internal const string With = "with";
+        internal const string Pattern = "pattern";
         private const string Select = "Select";
         private static readonly string[] ConditionKeyWords = [SuchThatRegex, With, Pattern];
 
@@ -24,8 +26,9 @@ namespace SPA.PQL.Parser {
             {
                 Variables = ParseVariables(expressions[..^1]).ToList(),
                 QueryResult = ParseQueryResult(expressions[^1]),
+                Conditions = ParseConditions(expressions[^1]).ToList(),
             };
-
+            
             return result;
         }
 
@@ -101,6 +104,29 @@ namespace SPA.PQL.Parser {
             }
         }
 
+        internal IEnumerable<PQLBaseCondition> ParseConditions(string expression)
+        {
+            var conditionSubstrings = PQLParserHelper.GetAllConditionSubstrings(expression);
+
+            foreach (var conditionGroup in conditionSubstrings)
+            {
+                foreach (var condition in conditionGroup.Value.Split("and", StringSplitOptions.TrimEntries))
+                {
+                    switch (conditionGroup.Key)
+                    {
+                        case ConditionType.SuchThat:
+                            yield return ParseSuchThatCondition(condition);
+                            break;
+                        case ConditionType.With:
+                            yield return ParseWithCondition(condition);
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+            }
+        }
+        
         private PQLWithCondition ParseWithCondition(string condition)
         {
             var tokens = condition.Split('=', StringSplitOptions.TrimEntries);
@@ -195,8 +221,8 @@ namespace SPA.PQL.Parser {
             return new PQLSuchThatCondition()
             {
                 RelationName = relationName,
-                FirstValue = ParseSuchThatConditionReference(arguments[0]),
-                SecondValue = ParseSuchThatConditionReference(arguments[1]),
+                LeftReference = ParseSuchThatConditionReference(arguments[0]),
+                RightReference = ParseSuchThatConditionReference(arguments[1]),
             };
         }
 

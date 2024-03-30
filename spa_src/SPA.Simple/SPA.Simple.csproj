@@ -6,8 +6,4 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\SPA.Simple\SPA.Simple.csproj" />
-    </ItemGroup>
-
 </Project>
