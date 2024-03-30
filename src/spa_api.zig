@@ -48,7 +48,7 @@ fn makeInstance(simple_src_file_path: [*:0]const u8) Error!SpaInstance {
     return .{ .ast = ast };
 }
 
-pub export fn spaInit(simple_src_file_path: [*:0]const u8) callconv(.C) c_uint {
+pub export fn Init(simple_src_file_path: [*:0]const u8) callconv(.C) c_uint {
     instance = makeInstance(simple_src_file_path) catch |e| {
         return @intFromEnum(errorToEnum(e));
     };
@@ -56,7 +56,7 @@ pub export fn spaInit(simple_src_file_path: [*:0]const u8) callconv(.C) c_uint {
     return @intFromEnum(ErrorEnum.OK);
 }
 
-pub export fn spaDeinit() callconv(.C) c_uint { 
+pub export fn Deinit() callconv(.C) c_uint { 
     if (instance) |value| {
         value.ast.deinit();
         return @intFromEnum(ErrorEnum.OK);
@@ -64,9 +64,14 @@ pub export fn spaDeinit() callconv(.C) c_uint {
     return @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
 }
 
-pub export fn spaGetError() callconv(.C) [*:0]const u8 {
+pub export fn GetError() callconv(.C) [*:0]const u8 {
     return &error_buffer;
 }
+
+// pub export fn Follows(s1: c_uint, s2: c_uint) c_uint {
+
+// }
+
 
 
 pub const Error = error{ 

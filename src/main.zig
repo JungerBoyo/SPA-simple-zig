@@ -15,6 +15,7 @@ comptime {
     _ = @import("tokenizer_tests.zig");
     _ = @import("ast_parser_tests.zig");
     _ = @import("spa_api_tests.zig");
+    _ = @import("ast_tests.zig");
 }
 
 pub fn main() !void {}

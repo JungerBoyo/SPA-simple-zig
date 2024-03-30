@@ -4,17 +4,15 @@ using System;
 using System.Runtime.InteropServices;
 
 public class SpaApi {
-
-// #ifdef LINUX
     string spa_api_lib_path = "<PLACEHOLDER>";
-// #else
-//     string spa_api_lib_path = "../zig-out/lib/libsimple-spa.dll";
-// #endif
 
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
-    public static extern uint spaInit(string simple_src_file_path);
+    public static extern uint Init(string simple_src_file_path);
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
-    public static extern uint spaDeinit();
+    public static extern uint Deinit();
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
-    public static extern string spaGetError();
+    public static extern string GetError();
+
+    // [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
+    // public static extern uint Follows(uint s1, uint s2);
 }
