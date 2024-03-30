@@ -74,6 +74,7 @@ pub export fn Follows(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
     }
     return 0;
 }
+
 pub export fn FollowsTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
     if (instance) |value| {
         return @intCast(@intFromBool(value.ast.followsTransitive(@intCast(s1), @intCast(s2))));
@@ -81,6 +82,12 @@ pub export fn FollowsTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
     return 0;
 }
 
+pub export fn Parent(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
+    if (instance) |value| {
+        return @intCast(@intFromBool(value.ast.parent(@intCast(s1), @intCast(s2))));
+    }
+    return 0;
+}
 
 pub const Error = error{ 
     SIMPLE_FILE_OPEN_ERROR, 

@@ -114,3 +114,38 @@ test "follows*" {
     try std.testing.expect(!ast.followsTransitive(4, 8));
 }
 
+
+test "parent" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  while i {
+    \\      x = x + 2 * y;
+    \\      call Third;
+    \\      i = i - 1;
+    \\  }
+    \\  if x then {
+    \\      x = x + 1;
+    \\  } else {
+    \\      z = 1;
+    \\  }
+    \\  z = z + x + i;
+    \\  y = z + 2;
+    \\  x = x * y + z;
+    \\}
+    ;
+
+    var ast = try getAST(simple[0..]);
+    defer ast.deinit();
+
+    try std.testing.expect(!ast.parent(1, 2));
+    try std.testing.expect(!ast.parent(2, 3));
+    try std.testing.expect(ast.parent(3, 4));
+    try std.testing.expect(ast.parent(3, 5));
+    try std.testing.expect(ast.parent(3, 6));
+    try std.testing.expect(!ast.parent(3, 7));
+    try std.testing.expect(ast.parent(7, 8));
+    try std.testing.expect(ast.parent(7, 9));
+    try std.testing.expect(!ast.parent(7, 10));
+}

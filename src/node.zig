@@ -23,8 +23,8 @@ pub const NodeType = enum {
 
 pub const NodeMetadata = struct {
     statement_id: u32 = 0,
-    line_no: i32,
-    column_no: i32,
+    line_no: i32 = 0,
+    column_no: i32 = 0,
     // line: []u8,
 };
 
@@ -39,5 +39,5 @@ pub const Node = struct {
     // attributes (mostly procedure names, var names, constant values)
     value: ?[]u8 = null,
     // node metadata - similar to token metadata
-    metadata: ?NodeMetadata = null,
+    metadata: NodeMetadata = .{},
 };
