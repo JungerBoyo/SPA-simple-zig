@@ -1,5 +1,6 @@
 const std = @import("std");
-
+const builtin = @import("builtin");
+    
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
@@ -15,9 +16,6 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const build_options = b.addOptions();
-    build_options.addOption(bool, "immediate_errors", b.option(bool, "immediate_errors", "print errors immediately in spa backend") orelse false);
-
     const exe = b.addExecutable(.{
         .name = "spa-simple-zig",
         // In this case the main source file is merely a path, however, in more
@@ -26,7 +24,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.addOptions("build_options", build_options);
 
     const lib_spa_api = b.addSharedLibrary(.{
         .name = "simple-spa",
@@ -35,9 +32,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .version = .{ .major = 0, .minor = 1, .patch = 0 },
     });
-    lib_spa_api.addOptions("build_options", build_options);
 
     b.installArtifact(lib_spa_api);
+
+    var copy_spa_api_cs_decl: *std.build.RunStep = if (builtin.os.tag == .linux)
+            b.addSystemCommand(&[_][]const u8{"cp", "src/spa_api_linux.cs", "spa_src/spa_api.cs"})
+        else
+            b.addSystemCommand(&[_][]const u8{"cp", "src/spa_api_windows.cs", "spa_src/spa_api.cs"});
+
+    const copy_spa_api_cs_decl_step = b.step("Copy SPA API C# file", "Copy spa_api.cs to C# src code dir.");
+    
+    copy_spa_api_cs_decl_step.dependOn(&copy_spa_api_cs_decl.step);
+    b.getInstallStep().dependOn(copy_spa_api_cs_decl_step);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
