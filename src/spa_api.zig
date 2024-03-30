@@ -68,10 +68,12 @@ pub export fn GetError() callconv(.C) [*:0]const u8 {
     return &error_buffer;
 }
 
-// pub export fn Follows(s1: c_uint, s2: c_uint) c_uint {
-
-// }
-
+pub export fn Follows(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
+    if (instance) |value| {
+        return @intCast(@intFromBool(value.ast.follows(@intCast(s1), @intCast(s2))));
+    }
+    return 0;
+}
 
 
 pub const Error = error{ 
