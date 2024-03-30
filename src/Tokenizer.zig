@@ -4,6 +4,8 @@ const Token         = @import("token.zig").Token;
 const TokenMetadata = @import("token.zig").TokenMetadata;
 const TokenType     = @import("token.zig").TokenType;
 
+pub fn Tokenizer(comptime ErrWriter: type) type { return struct {
+
 const Self = @This();
 
 // Scans any stream of bytes with `anytype` reader
@@ -12,20 +14,25 @@ const Self = @This();
 // called. Variable `error_flag` is true when error
 // occured during tokenization process.
 
+pub const Error = error {
+    TOKENIZER_OUT_OF_MEMORY,
+    SIMPLE_STREAM_READING_ERROR,
+    UNEXPECTED_CHAR,
+};
 
 arena_allocator: std.heap.ArenaAllocator,
 tokens: std.ArrayList(Token),
+err_log_writer: ErrWriter,
 
-error_flag: bool = false,
 column_no: i32 = 0,
 line_no: i32 = 1,
 line: ?[]u8 = null,
 
-pub fn init(internal_allocator: std.mem.Allocator) !*Self {
-    var self = try internal_allocator.create(Self);
+pub fn init(internal_allocator: std.mem.Allocator, err_log_writer: ErrWriter) Error!*Self {
+    var self = internal_allocator.create(Self) catch return Error.TOKENIZER_OUT_OF_MEMORY;
     self.arena_allocator = std.heap.ArenaAllocator.init(internal_allocator);
     self.tokens = std.ArrayList(Token).init(self.arena_allocator.allocator());
-    self.error_flag = false;
+    self.err_log_writer = err_log_writer;
     self.column_no = 0;
     self.line_no = 1;
     self.line = null;
@@ -33,20 +40,19 @@ pub fn init(internal_allocator: std.mem.Allocator) !*Self {
 }
 
 fn getLine(self: *Self, reader: anytype) !?[]u8 {
-    return try reader.readUntilDelimiterOrEofAlloc(self.arena_allocator.allocator(), '\n', 1024*1024);
+    return reader.readUntilDelimiterOrEofAlloc(self.arena_allocator.allocator(), '\n', 1024) catch
+    return Error.SIMPLE_STREAM_READING_ERROR;
 }
 
 fn onError(self: *Self, message: []const u8) void {
-    self.error_flag = true;
-
     const line_until_column = self.line.?[0..@intCast(self.column_no)];
     const line_after_column = self.line.?[@intCast(self.column_no + 1)..];
     const char_in_column = self.line.?[@intCast(self.column_no)..@intCast(self.column_no + 1)];
 
-    std.log.err("Error at {}:{}: {s}\n\t{s}[{s}]{s}", .{
+    self.err_log_writer.print("Error at {}:{}: {s}\n\t{s}[{s}]{s}\n", .{
         self.line_no, self.column_no + 1, message,
         line_until_column, char_in_column, line_after_column,
-    });
+    }) catch unreachable;
 }
 
 fn isNumeric(c: u8) bool {
@@ -139,7 +145,7 @@ fn parseOneCharToken(self: *Self, token_type: TokenType) Token {
     };
 }
 
-fn parseToken(self: *Self) ?Token {
+fn parseToken(self: *Self) Error!Token {
     const c = self.getCurrentChar();
     return switch (c) {
         ' ', '\t', '\r' => blk: { // inluding '\r'... because Windows........ :skull:
@@ -164,15 +170,18 @@ fn parseToken(self: *Self) ?Token {
             }
 
             self.onError("Unexpected char.");
-            break :blk null;
+            break :blk Error.UNEXPECTED_CHAR;
         }
     };
 }
 
-pub fn tokenize(self: *Self, reader: anytype) !void {
+pub fn tokenize(self: *Self, reader: anytype) Error!void {
     var eof: bool = false;
     while (!eof) {
-        self.line = try self.getLine(reader); 
+        self.line = self.getLine(reader) catch |e| {
+            eof = true;
+            return e;
+        }; 
         if (self.line == null) {
             eof = true;
             break;
@@ -183,23 +192,24 @@ pub fn tokenize(self: *Self, reader: anytype) !void {
 
         self.column_no = 0;
         while (self.column_no < self.line.?.len) {
-            var token = self.parseToken();
-            if (token == null) { // error (equivalent to `error_flag`)
+            var token = self.parseToken() catch |e| {
                 eof = true;
-                break;
-            }
-            if (token.?.type == .WHITE) {
+                return e;
+            };
+            if (token.type == .WHITE) {
                 continue;
             }
-            try self.tokens.append(token.?);
+            self.tokens.append(token) catch return Error.TOKENIZER_OUT_OF_MEMORY;
         }
         self.line_no += 1;
     }
 
-    try self.tokens.append(.{ .type = .EOF });
+    self.tokens.append(.{ .type = .EOF }) catch return Error.TOKENIZER_OUT_OF_MEMORY;
 }
 
 pub fn deinit(self: *Self) void {
     self.arena_allocator.deinit();
     self.arena_allocator.child_allocator.destroy(self);
 }
+
+};}

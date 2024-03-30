@@ -2,30 +2,26 @@ const std = @import("std");
 
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
-const Tokenizer = @import("Tokenizer.zig");
+const Tokenizer = @import("Tokenizer.zig").Tokenizer(@TypeOf(std.io.getStdErr().writer()));
 
 fn tokenizerTestGood(simple: []const u8, tokens: []const TokenType) !void {
-    var tokenizer = try Tokenizer.init(std.testing.allocator);
+    var tokenizer = try Tokenizer.init(std.testing.allocator, std.io.getStdErr().writer());
     defer tokenizer.deinit();
 
     var fixed_buffer_stream = std.io.fixedBufferStream(simple[0..]);
     try tokenizer.tokenize(fixed_buffer_stream.reader());
 
-    try std.testing.expectEqual(false, tokenizer.error_flag);
-    
     for (tokenizer.tokens.items, tokens) |*to_check_token, good_token_type| {
         try std.testing.expectEqual(good_token_type, to_check_token.type);
     }
 }
 
 fn tokenizerTestBad(simple: []const u8) !void {
-    var tokenizer = try Tokenizer.init(std.testing.allocator);
+    var tokenizer = try Tokenizer.init(std.testing.allocator, std.io.getStdErr().writer());
     defer tokenizer.deinit();
 
     var fixed_buffer_stream = std.io.fixedBufferStream(simple[0..]);
-    try tokenizer.tokenize(fixed_buffer_stream.reader());
-
-    try std.testing.expectEqual(true, tokenizer.error_flag);
+    try std.testing.expectError(Tokenizer.Error.UNEXPECTED_CHAR, tokenizer.tokenize(fixed_buffer_stream.reader()));
 }
 
 test "tokenizer#0" {

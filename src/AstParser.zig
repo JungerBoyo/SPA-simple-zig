@@ -8,7 +8,19 @@ const NodeMetadata      = @import("node.zig").NodeMetadata;
 
 const AST = @import("Ast.zig");
 
+pub fn AstParser(comptime ErrWriter: type) type { return struct {
+
 const Self = @This();
+
+pub const Error = 
+    error { PARSER_OUT_OF_MEMORY } ||
+    ExpressionParseError ||
+    AssignmentParseError || 
+    CallParseError ||
+    IfParseError ||
+    VarParseError ||
+    StatementListParseError ||
+    ProcedureParseError;
 
 tokens: []Token,
 
@@ -18,12 +30,12 @@ root: Node = .{ .type = .PROGRAM },
 levels: std.ArrayList(std.ArrayList(Node)),
 expression_level: std.ArrayList(Node),
 
+err_log_writer: ErrWriter,
+
 current_token: u32 = 0,
 current_statement: u32 = 1,
 current_level: i32 = -1,
 current_parent_index: u32 = 0,
-
-error_flag: bool = false,
 
 fn setDefaults(self: *Self) void {
     self.root = .{ .type = .PROGRAM };
@@ -31,67 +43,63 @@ fn setDefaults(self: *Self) void {
     self.current_statement = 1;
     self.current_level = -1;
     self.current_parent_index = 0;
-    self.error_flag = false;
 }
 
-pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token) !*Self {
-    var self = try internal_allocator.create(Self);
+pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token, err_log_writer: ErrWriter) Error!*Self {
+    var self = internal_allocator.create(Self) catch return Error.PARSER_OUT_OF_MEMORY;
 
     self.tokens = tokens;
     self.arena_allocator = std.heap.ArenaAllocator.init(internal_allocator);
 
     self.levels = std.ArrayList(std.ArrayList(Node)).init(self.arena_allocator.allocator());
-    try self.levels.append(std.ArrayList(Node).init(self.arena_allocator.allocator()));
+    self.levels.append(std.ArrayList(Node).init(self.arena_allocator.allocator())) catch 
+        return Error.PARSER_OUT_OF_MEMORY;
     
     self.expression_level = std.ArrayList(Node).init(self.arena_allocator.allocator());
+
+    self.err_log_writer = err_log_writer;
 
     self.setDefaults();
     return self;
 }
 
 fn onError(self: *Self, message: []const u8) void {
-    self.error_flag = true;
-
     if (self.getCurrentToken().metadata) |token_metadata| {
         const line_until_column = token_metadata.line[0..@intCast(token_metadata.column_no)];
         const line_after_column = token_metadata.line[@intCast(token_metadata.column_no + 1)..];
         const char_in_column = token_metadata.line[@intCast(token_metadata.column_no)..@intCast(token_metadata.column_no + 1)];
 
-        std.log.err("Error at {}:{}: {s}\n\t{s}[{s}]{s}", .{
+        self.err_log_writer.print("Error at {}:{}: {s}\n\t{s}[{s}]{s}\n", .{
             token_metadata.line_no, token_metadata.column_no + 1, message,
             line_until_column, char_in_column, line_after_column,
-        });
+        }) catch unreachable;
     } else {
-        std.log.err("Error at ?:?: {s}\n\t??????", .{message});             
+        self.err_log_writer.print("Error at ?:?: {s}\n\t??????\n", .{message}) catch unreachable;
     }
 }
 
-
-const ParsingError = error {
-    PARSE_EXPRESSION_ERROR,
-    PARSE_ERROR,
+const ExpressionParseError = error {
+    NO_MATCHING_RIGHT_PARENTHESIS,
+    WRONG_FACTOR
 };
-
-const Error = ParsingError || std.mem.Allocator.Error;
-
 fn parseFactor(self: *Self) Error!u32 {
     const token = self.getCurrentToken();
     self.current_token += 1;
     return switch (token.type) {
     .NAME => blk: {
-        try self.expression_level.append(.{
+        self.expression_level.append(.{
             .type = .VAR,
             .value = token.value,
             .metadata = self.getNodeMetadata(&token, 0)
-        });
+        }) catch return Error.PARSER_OUT_OF_MEMORY;
         break :blk @intCast(self.expression_level.items.len - 1);
     },
     .INTEGER => blk: {
-        try self.expression_level.append(.{
+        self.expression_level.append(.{
             .type = .CONST,
             .value = token.value,
             .metadata = self.getNodeMetadata(&token, 0)
-        });
+        }) catch return Error.PARSER_OUT_OF_MEMORY;
         break :blk @intCast(self.expression_level.items.len - 1);
     },
     .LEFT_PARENTHESIS => blk: {
@@ -100,12 +108,12 @@ fn parseFactor(self: *Self) Error!u32 {
             break :blk node;
         } else {
             self.onError("Expected ')'");
-            break :blk error.PARSE_EXPRESSION_ERROR;
+            break :blk ExpressionParseError.NO_MATCHING_RIGHT_PARENTHESIS;
         }
     },
     else => blk: {
         self.onError("Factor can only be var name, integer or other expression enclosed in '('')'");
-        break :blk error.PARSE_EXPRESSION_ERROR;
+        break :blk ExpressionParseError.WRONG_FACTOR;
     }
     };
 }
@@ -118,12 +126,12 @@ fn parseTerm(self: *Self) Error!u32 {
         self.expression_level.items[lhs_node].parent_index = @intCast(self.expression_level.items.len);
         self.expression_level.items[rhs_node].parent_index = @intCast(self.expression_level.items.len);
 
-        try self.expression_level.append(.{
+        self.expression_level.append(.{
             .type = NodeType.MUL,
             .children_index_or_lhs_child_index = lhs_node,
             .children_count_or_rhs_child_index = rhs_node,
             .metadata = self.getNodeMetadata(&token, 0)
-        });
+        }) catch return Error.PARSER_OUT_OF_MEMORY;
         lhs_node = @intCast(self.expression_level.items.len - 1);
     }
     return lhs_node;
@@ -140,141 +148,155 @@ fn parseExpression(self: *Self) Error!u32 {
         self.expression_level.items[lhs_node].parent_index = @intCast(self.expression_level.items.len);
         self.expression_level.items[rhs_node].parent_index = @intCast(self.expression_level.items.len);
 
-        try self.expression_level.append(.{
+        self.expression_level.append(.{
             .type = if (token.type == TokenType.ADD) NodeType.ADD else NodeType.SUB,
             .children_index_or_lhs_child_index = lhs_node,
             .children_count_or_rhs_child_index = rhs_node,
             .metadata = self.getNodeMetadata(&token, 0)
-        });
+        }) catch return Error.PARSER_OUT_OF_MEMORY;
         lhs_node = @intCast(self.expression_level.items.len - 1);
     }
     return lhs_node;
 }
 
-fn parseExpressionSetNode(self: *Self) Error!bool {
+fn parseExpressionSetNode(self: *Self) Error!void {
     const previous_children_count = self.expression_level.items.len;
     if (self.parseExpression()) |expression_children_index| {
         var assign_var_node = &self.currentLevel().items[self.currentLevel().items.len - 1];
         assign_var_node.children_index_or_lhs_child_index = expression_children_index;
         assign_var_node.children_count_or_rhs_child_index = @intCast(self.expression_level.items.len - previous_children_count);
-        return true;
-    } else |e| {
-        return e;
-    }
+    } else |e| { return e; }
 }
 
-fn parseAssignment(self: *Self) Error!bool {
-    try self.currentLevel().append(.{
+const AssignmentParseError = error {
+    SEMICOLON_NOT_FOUND_AFTER_ASSIGN,
+    ASSIGN_CHAR_NOT_FOUND
+};
+fn parseAssignment(self: *Self) Error!void {
+    self.currentLevel().append(.{
         .type = .ASSIGN, 
         .children_index_or_lhs_child_index = self.whereAreMyKids(),
         .children_count_or_rhs_child_index = 1,
         .parent_index = self.whereIsMyDad(),
         .metadata = self.getCurrentNodeMetadata(1),
         .value = self.getCurrentToken().value
-    });
+    }) catch return Error.PARSER_OUT_OF_MEMORY;
     self.current_token += 1;
     // compare later, no harm in adding a node before compare if everything is correct
     if (self.compareAdvance(TokenType.ASSIGN)) |_| {
-        if (try self.parseExpressionSetNode()) {
-            if (self.compareAdvance(.SEMICOLON)) |_| {
-                return true;
-            } else {
-                self.onError("Assignment statement must end with a ';'.");
-            }
+        try self.parseExpressionSetNode();
+        if (self.compareAdvance(.SEMICOLON) == null) {
+            self.onError("Assignment statement must end with a ';'.");
+            return AssignmentParseError.SEMICOLON_NOT_FOUND_AFTER_ASSIGN;
         }
     } else {
         self.onError("Assignment statement must consist of var name and '='.");
+        return AssignmentParseError.ASSIGN_CHAR_NOT_FOUND;
     }
-    return false;
 }
-fn parseCall(self: *Self) Error!bool {
+
+const CallParseError = error {
+    SEMICOLON_NOT_FOUND_AFTER_CALL,
+    CALLED_PROCEDURE_NAME_NOT_FOUND
+};
+fn parseCall(self: *Self) Error!void {
     self.current_token += 1;
     if (self.compareAdvance(TokenType.NAME)) |name_token| {
         if (self.compareAdvance(.SEMICOLON)) |_| {
-            try self.currentLevel().append(.{
+            self.currentLevel().append(.{
                 .type = NodeType.CALL, 
                 .parent_index = self.whereIsMyDad(),
                 .value = name_token.value,
                 .metadata = self.getNodeMetadata(&name_token, 1)
-            });
-            return true;
+            }) catch return Error.PARSER_OUT_OF_MEMORY;
         } else {
             self.onError("Call statement must end with a ';");
+            return CallParseError.SEMICOLON_NOT_FOUND_AFTER_CALL;
         }
     } else {
         self.onError("Call statement must have procedure name.");
+        return CallParseError.CALLED_PROCEDURE_NAME_NOT_FOUND;
     }
-    return false;
 }
-fn parseIf(self: *Self) Error!bool {
-    try self.currentLevel().append(.{
+
+const IfParseError = error {
+    THEN_KEYWORD_NOT_FOUND,
+    MATCHING_ELSE_CLOUSE_NOT_FOUND 
+};
+fn parseIf(self: *Self) Error!void {
+    self.currentLevel().append(.{
         .type = .IF, 
         .children_index_or_lhs_child_index = self.whereAreMyKids(),
         .children_count_or_rhs_child_index = 3,
         .parent_index = self.whereIsMyDad(),
         .metadata = self.getCurrentNodeMetadata(1),
-    });
+    }) catch return Error.PARSER_OUT_OF_MEMORY;
     self.current_token += 1;
 
-    if (try self.wrapInLevel(parseVar)) {
-        if (self.compareAdvance(.THEN)) |_| {
-            if (!try self.wrapInLevel(parseStatementListWithNode)) {
-                return false;
-            }
-        } else {
-            self.onError("Expecting then keyword before if statement list.");
-            return false;
-        }
+    try self.wrapInLevel(parseVar);
+    if (self.compareAdvance(.THEN)) |_| {
+        try self.wrapInLevel(parseStatementListWithNode);
     } else {
-        return false;
+        self.onError("Expecting then keyword before if statement list.");
+        return IfParseError.THEN_KEYWORD_NOT_FOUND;
     }
 
     if (self.compareAdvance(.ELSE)) |_| {
-        return try self.wrapInLevel(parseStatementListWithNode);
+        try self.wrapInLevel(parseStatementListWithNode);
     } else {
         self.onError("If statement must have matching else.");
+        return IfParseError.MATCHING_ELSE_CLOUSE_NOT_FOUND;
     }
-    return false;
 }
 
-fn parseVar(self: *Self) Error!bool {
+const VarParseError = error {
+    VAR_NAME_NOT_FOUND
+};
+fn parseVar(self: *Self) Error!void {
     if (self.compareAdvance(.NAME)) |name_token| {
-        try self.currentLevel().append(.{
+        self.currentLevel().append(.{
             .type = .VAR, 
             .parent_index = self.whereIsMyDad(),
             .value = name_token.value.?,
             .metadata = self.getNodeMetadata(&name_token, 0),
-        });
-        return true;
+        }) catch return Error.PARSER_OUT_OF_MEMORY;
     } else {
         self.onError("Expected variable.");
+        return VarParseError.VAR_NAME_NOT_FOUND;
     }
-    return false;        
 }
 
-fn parseWhile(self: *Self) Error!bool {
-    try self.currentLevel().append(.{
+fn parseWhile(self: *Self) Error!void {
+    self.currentLevel().append(.{
         .type = .WHILE, 
         .children_index_or_lhs_child_index = self.whereAreMyKids(),
         .children_count_or_rhs_child_index = 2,
         .parent_index = self.whereIsMyDad(),
         .metadata = self.getCurrentNodeMetadata(1),
-    });
+    }) catch return Error.PARSER_OUT_OF_MEMORY;
     self.current_token += 1;
 
-    return try self.wrapInLevel(parseVar) and try self.wrapInLevel(parseStatementListWithNode);
+    try self.wrapInLevel(parseVar);
+    try self.wrapInLevel(parseStatementListWithNode);
 }
 
-fn parseStatementListWithNode(self: *Self) Error!bool {
-    try self.currentLevel().append(.{
+fn parseStatementListWithNode(self: *Self) Error!void {
+    self.currentLevel().append(.{
         .type = .STMT_LIST, 
         .parent_index = self.whereIsMyDad(),
         .children_index_or_lhs_child_index = self.whereAreMyKids(),
-    });
-    return try self.wrapInLevel(parseStatementList);
+    }) catch return Error.PARSER_OUT_OF_MEMORY;
+    try self.wrapInLevel(parseStatementList);
 }
 
-fn parseStatementList(self: *Self) Error!bool {
+
+const StatementListParseError = error {
+    TOO_FEW_STATEMENTS,
+    INVALID_STATEMENT,
+    RIGHT_BRACE_NOT_FOUND,    
+    LEFT_BRACE_NOT_FOUND,        
+};
+fn parseStatementList(self: *Self) Error!void {
     if (self.compareAdvance(.LEFT_BRACE)) |_| {
         var i: u32 = 0;
         while (self.current_token < self.tokens.len) {
@@ -282,55 +304,57 @@ fn parseStatementList(self: *Self) Error!bool {
             if (token.type == .RIGHT_BRACE) {
                 if (i == 0) {
                     self.onError("Statement list must contain one or more statements.");
-                    return false;
+                    return StatementListParseError.TOO_FEW_STATEMENTS;
                 }
                 self.current_token += 1;
 
                 var previous_level = &self.levels.items[@intCast(self.current_level - 1)];
                 previous_level.items[previous_level.items.len - 1].children_count_or_rhs_child_index = i;
-
-                return true;
+                return;
             } else {
-                const result = switch (token.type) {
+                switch (token.type) {
                     .NAME   => try self.parseAssignment(),
                     .CALL   => try self.parseCall(),
                     .IF     => try self.parseIf(),
                     .WHILE  => try self.parseWhile(),
-                    else => blk: {
+                    else => {
                         self.onError("Valid statements are only assignements, calls, ifs and while loops.");
-                        break :blk false;
+                        return StatementListParseError.INVALID_STATEMENT;
                     },
-                };
-                if (!result) {
-                    return false;
                 }
                 i += 1;
             }
         }
         self.onError("Statement list must end with a '}'.");
+        return StatementListParseError.RIGHT_BRACE_NOT_FOUND;
     } else {
         self.onError("Statement list must begin with a '{'.");
+        return StatementListParseError.LEFT_BRACE_NOT_FOUND;
     }
-    return false;
 }
 
-fn parseProcedure(self: *Self) Error!bool {
+const ProcedureParseError = error {
+    KEYWORD_NOT_FOUND,
+    PROCEDURE_NAME_NOT_FOUND,
+};
+fn parseProcedure(self: *Self) Error!void {
     if (self.compareAdvance(.PROCEDURE)) |_| {
         if (self.compareAdvance(.NAME)) |name_token| {
-            try self.currentLevel().append(.{
+            self.currentLevel().append(.{
                 .type = .PROCEDURE, 
                 .children_index_or_lhs_child_index = self.whereAreMyKids(),
                 .value = name_token.value,
                 .metadata = self.getNodeMetadata(&name_token, 0)
-            });
-            return try self.wrapInLevel(parseStatementList);
+            }) catch return Error.PARSER_OUT_OF_MEMORY;
+            try self.wrapInLevel(parseStatementList);
         } else {
             self.onError("Procedure declaration must contain procedure name.");
+            return ProcedureParseError.PROCEDURE_NAME_NOT_FOUND;
         }
     } else {
         self.onError("Program can consist only of procedures beginning with 'procedure' keyword.");
+        return ProcedureParseError.KEYWORD_NOT_FOUND;
     }
-    return false;
 }
 
 
@@ -389,10 +413,11 @@ fn getStatementId(self: *Self) u32 {
     defer self.current_statement += 1;
     return self.current_statement;
 }
-fn wrapInLevel(self: *Self, parse_ptr: *const fn(self: *Self) Error!bool) Error!bool {
+fn wrapInLevel(self: *Self, parse_ptr: *const fn(self: *Self) Error!void) Error!void {
     self.current_level += 1;
     while (self.current_level + 2 > self.levels.items.len) { // reserve this level and next one
-        try self.levels.append(std.ArrayList(Node).init(self.arena_allocator.allocator()));
+        self.levels.append(std.ArrayList(Node).init(self.arena_allocator.allocator())) catch
+            return Error.PARSER_OUT_OF_MEMORY;
     }
     defer self.current_level -= 1;
     return try parse_ptr(self);
@@ -406,12 +431,9 @@ pub fn deinit(self: *Self) void {
 // main parse function
 pub fn parse(self: *Self) Error!*AST {
     while (!self.compare(.EOF)) {
-        if (!try self.wrapInLevel(parseProcedure)) {
-            return error.PARSE_ERROR;
-        } else {
-            // set children count for parent
-            self.root.children_count_or_rhs_child_index += 1;
-        }
+        try self.wrapInLevel(parseProcedure);
+        // set children count for parent
+        self.root.children_count_or_rhs_child_index += 1;
     }
 
     var flattened_tree_size: usize = 1 + self.expression_level.items.len; // 1 => root node
@@ -419,7 +441,8 @@ pub fn parse(self: *Self) Error!*AST {
         flattened_tree_size += level.items.len;
     }
 
-    var ast = try AST.init(self.arena_allocator.child_allocator, flattened_tree_size);
+    var ast = AST.init(self.arena_allocator.child_allocator, flattened_tree_size) catch
+        return Error.PARSER_OUT_OF_MEMORY;
 
     ast.nodes[0] = self.root;
     ast.nodes[0].children_index_or_lhs_child_index = 1; // levels start from 1 index
@@ -453,7 +476,8 @@ pub fn parse(self: *Self) Error!*AST {
                     }
 
                     if (dst_expr_node.value) |*value| {
-                        value.* = try ast.arena_allocator.allocator().dupe(u8, value.*);                            
+                        value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
+                            return Error.PARSER_OUT_OF_MEMORY;
                     }
                 }
                 ast.nodes[ast.nodes[i_nodes].children_index_or_lhs_child_index].parent_index = @intCast(i_nodes);
@@ -464,7 +488,8 @@ pub fn parse(self: *Self) Error!*AST {
                     ast.nodes[i_nodes].children_index_or_lhs_child_index += @intCast(level_offset);
                 }
                 if (ast.nodes[i_nodes].value) |*value| {
-                    value.* = try ast.arena_allocator.allocator().dupe(u8, value.*);
+                    value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
+                        return Error.PARSER_OUT_OF_MEMORY;
                 }
             }
             i_nodes += 1;
@@ -473,3 +498,5 @@ pub fn parse(self: *Self) Error!*AST {
 
     return ast;
 }
+
+};}

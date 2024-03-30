@@ -1,9 +1,0 @@
-procedure Second {
- while i {
-
-x = x + 2 * y;
-
-call Third;
-
-i = i - 1; }
-}

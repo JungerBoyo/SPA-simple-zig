@@ -7,22 +7,20 @@ const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
 const AST = @import("Ast.zig");
-const ASTParser = @import("AstParser.zig");
-const Tokenizer = @import("Tokenizer.zig");
+const ASTParser = @import("AstParser.zig").AstParser(@TypeOf(std.io.getStdErr().writer()));
+const Tokenizer = @import("Tokenizer.zig").Tokenizer(@TypeOf(std.io.getStdErr().writer()));
 
 test "parser#0" {
     const simple = "procedure Third{z=5;v=z;}";
-    var tokenizer = try Tokenizer.init(std.testing.allocator);
+    var tokenizer = try Tokenizer.init(std.testing.allocator, std.io.getStdErr().writer());
 
     var fixed_buffer_stream = std.io.fixedBufferStream(simple[0..]);
     try tokenizer.tokenize(fixed_buffer_stream.reader());
 
-    var parser = try ASTParser.init(std.testing.allocator, tokenizer.tokens.items[0..]);
+    var parser = try ASTParser.init(std.testing.allocator, tokenizer.tokens.items[0..], std.io.getStdErr().writer());
 
     var ast = try parser.parse();
     defer ast.deinit();
-
-    try std.testing.expectEqual(false, parser.error_flag);
 
     // ast memory should be independent of parser and tokenizer memories
     parser.deinit();
@@ -64,20 +62,17 @@ test "parser#1" {
     \\ y = z + 2;
     \\ x = x * y + z; }
     ;
-    var tokenizer = try Tokenizer.init(std.testing.allocator);
+    var tokenizer = try Tokenizer.init(std.testing.allocator, std.io.getStdErr().writer());
     defer tokenizer.deinit();
 
     var fixed_buffer_stream = std.io.fixedBufferStream(simple[0..]);
     try tokenizer.tokenize(fixed_buffer_stream.reader());
 
-    var parser = try ASTParser.init(std.testing.allocator, tokenizer.tokens.items[0..]);
+    var parser = try ASTParser.init(std.testing.allocator, tokenizer.tokens.items[0..], std.io.getStdErr().writer());
     defer parser.deinit();
 
     var ast = try parser.parse();
     defer ast.deinit();
-
-    try std.testing.expectEqual(false, parser.error_flag);
-
 
     const nodes = [_]NodeType {
         .PROGRAM, 
@@ -127,19 +122,17 @@ test "parser#2" {
     \\i = i - 1; }
     \\}
     ;
-    var tokenizer = try Tokenizer.init(std.testing.allocator);
+    var tokenizer = try Tokenizer.init(std.testing.allocator, std.io.getStdErr().writer());
     defer tokenizer.deinit();
 
     var fixed_buffer_stream = std.io.fixedBufferStream(simple[0..]);
     try tokenizer.tokenize(fixed_buffer_stream.reader());
 
-    var parser = try ASTParser.init(std.testing.allocator, tokenizer.tokens.items[0..]);
+    var parser = try ASTParser.init(std.testing.allocator, tokenizer.tokens.items[0..], std.io.getStdErr().writer());
     defer parser.deinit();
 
     var ast = try parser.parse();
     defer ast.deinit();
-
-    try std.testing.expectEqual(false, parser.error_flag);
 
     const nodes = [_]Node {
         testMakeNode(.PROGRAM, 1, 1, 0),    //0
