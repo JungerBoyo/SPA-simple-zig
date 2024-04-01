@@ -6,9 +6,10 @@ const Node              = @import("node.zig").Node;
 const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
-const AST = @import("Ast.zig");
 
-pub fn AstParser(comptime ErrWriter: type) type { return struct {
+pub fn AstParser(comptime ErrWriter: type, comptime AstResultIntType: type) type { return struct {
+
+pub const AST = @import("Ast.zig").Ast(AstResultIntType);
 
 const Self = @This();
 
@@ -441,7 +442,7 @@ pub fn parse(self: *Self) Error!*AST {
         flattened_tree_size += level.items.len;
     }
 
-    var ast = AST.init(self.arena_allocator.child_allocator, flattened_tree_size) catch
+    var ast = AST.init(self.arena_allocator.child_allocator, flattened_tree_size, self.current_statement) catch
         return Error.PARSER_OUT_OF_MEMORY;
 
     ast.nodes[0] = self.root;
@@ -492,6 +493,11 @@ pub fn parse(self: *Self) Error!*AST {
                         return Error.PARSER_OUT_OF_MEMORY;
                 }
             }
+
+            if(node.metadata.statement_id != 0) {
+                ast.statement_map[node.metadata.statement_id] = i_nodes;
+            }
+
             i_nodes += 1;
         }
     }

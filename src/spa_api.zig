@@ -6,12 +6,12 @@ const Node              = @import("node.zig").Node;
 const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
-const AST = @import("Ast.zig");
-
 const ERR_BUFFER_SIZE = 1024;
+const RESULT_BUFFER_SIZE = 8192;
 
-const ASTParser = @import("AstParser.zig").AstParser(std.io.FixedBufferStream([]u8).Writer);
+const ASTParser = @import("AstParser.zig").AstParser(std.io.FixedBufferStream([]u8).Writer, c_uint);
 const Tokenizer = @import("Tokenizer.zig").Tokenizer(std.io.FixedBufferStream([]u8).Writer);
+const AST = ASTParser.AST;
 
 const allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
@@ -19,8 +19,11 @@ const SpaInstance = struct {
     ast: *AST
 };
 
-var error_buffer: [ERR_BUFFER_SIZE:0]u8 = .{0} ** 1024;
+var error_buffer: [ERR_BUFFER_SIZE:0]u8 = .{0} ** ERR_BUFFER_SIZE;
 var error_buffer_stream = std.io.fixedBufferStream(error_buffer[0..]);
+
+var result_buffer: [RESULT_BUFFER_SIZE]u8 = .{0} ** RESULT_BUFFER_SIZE;
+var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
 var instance: ?SpaInstance = null;
 
@@ -68,11 +71,24 @@ pub export fn GetError() callconv(.C) [*:0]const u8 {
     return &error_buffer;
 }
 
-pub export fn Follows(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
-    if (instance) |value| {
-        return @intCast(@intFromBool(value.ast.follows(@intCast(s1), @intCast(s2))));
+pub export fn Follows(s1_type: c_uint, s1: c_uint, s2_type: c_uint, s2: c_uint) callconv(.C) [*c]c_uint {
+    // can't select 2 statments, can't select 
+    if ((s1 == 0 and s2 == 0) or (s1 == 0xFF_FF_FF_FF and s2 == 0xFF_FF_FF_FF)) {
+        return 0x0;
     }
-    return 0;
+
+    if (instance) |value| {
+        _ = value.ast.follows(
+            result_buffer_stream.writer(),
+            @enumFromInt(@as(u32, s1_type)),
+            @intCast(s1), 
+            @enumFromInt(@as(u32, s2_type)),
+            @intCast(s2)
+        ) catch unreachable;
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    }
+
+    return 0x0;
 }
 
 pub export fn FollowsTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {

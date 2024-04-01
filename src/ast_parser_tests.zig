@@ -6,9 +6,9 @@ const Node              = @import("node.zig").Node;
 const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
-const AST = @import("Ast.zig");
-const ASTParser = @import("AstParser.zig").AstParser(@TypeOf(std.io.getStdErr().writer()));
 const Tokenizer = @import("Tokenizer.zig").Tokenizer(@TypeOf(std.io.getStdErr().writer()));
+const ASTParser = @import("AstParser.zig").AstParser(@TypeOf(std.io.getStdErr().writer()), u32);
+const AST = ASTParser.AST;
 
 test "parser#0" {
     const simple = "procedure Third{z=5;v=z;}";

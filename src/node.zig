@@ -1,4 +1,5 @@
-pub const NodeType = enum {
+pub const NodeType = enum(u32) {
+    NONE, // null type
     // root node (aggregates procedures)
     PROGRAM,        // program : procedure+
     // directly aggregates STATEMENTS

@@ -6,9 +6,9 @@ const Node              = @import("node.zig").Node;
 const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
-const AST = @import("Ast.zig");
-const ASTParser = @import("AstParser.zig").AstParser(@TypeOf(std.io.getStdErr().writer()));
 const Tokenizer = @import("Tokenizer.zig").Tokenizer(@TypeOf(std.io.getStdErr().writer()));
+const ASTParser = @import("AstParser.zig").AstParser(@TypeOf(std.io.getStdErr().writer()), u32);
+const AST = ASTParser.AST;
 
 fn getAST(simple_src: []const u8) !*AST {
     var tokenizer = try Tokenizer.init(std.testing.allocator, std.io.getStdErr().writer());
@@ -47,19 +47,33 @@ test "follows" {
     var ast = try getAST(simple[0..]);
     defer ast.deinit();
 
-    try std.testing.expect(ast.follows(1, 2));
-    try std.testing.expect(ast.follows(2, 3));
-    try std.testing.expect(!ast.follows(3, 4));
-    try std.testing.expect(ast.follows(4, 5));
-    try std.testing.expect(ast.follows(5, 6));
-    try std.testing.expect(!ast.follows(6, 7));
-    try std.testing.expect(ast.follows(3, 7));
-    try std.testing.expect(!ast.follows(7, 8));
-    try std.testing.expect(!ast.follows(8, 9));
-    try std.testing.expect(ast.follows(7, 10));
-    try std.testing.expect(ast.follows(10, 11));
-    try std.testing.expect(ast.follows(11, 12));
-    try std.testing.expect(!ast.follows(12, 13));
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+
+    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .NONE, 1, .NONE, 2));
+    try std.testing.expect(1 == std.mem.readInt(u32, result_buffer[0..4], .Little));
+    result_buffer_stream.reset();
+
+    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, 2, .NONE, AST.STATEMENT_SELECTED));
+    try std.testing.expect(3 == std.mem.readInt(u32, result_buffer[0..4], .Little));
+    result_buffer_stream.reset();
+    
+    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .WHILE, AST.STATEMENT_SELECTED, .IF, 7));
+    try std.testing.expect(3 == std.mem.readInt(u32, result_buffer[0..4], .Little));
+    result_buffer_stream.reset();
+    
+    try std.testing.expect(0 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_SELECTED, .IF, 7));
+    try std.testing.expect(0 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_SELECTED, .IF, AST.STATEMENT_UNDEFINED));
+    
+    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_SELECTED, .WHILE, AST.STATEMENT_UNDEFINED));
+    try std.testing.expect(2 == std.mem.readInt(u32, result_buffer[0..4], .Little));
+    result_buffer_stream.reset();
+
+    try std.testing.expect(3 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_UNDEFINED, .ASSIGN, AST.STATEMENT_SELECTED));
+    
+    try std.testing.expect(2 == std.mem.readInt(u32, result_buffer[0..4], .Little));
+    try std.testing.expect(11 == std.mem.readInt(u32, result_buffer[4..8], .Little));
+    try std.testing.expect(12 == std.mem.readInt(u32, result_buffer[8..12], .Little));
 }
 
 test "follows*" {
