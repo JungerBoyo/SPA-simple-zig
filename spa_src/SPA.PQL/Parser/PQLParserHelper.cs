@@ -1,27 +1,32 @@
 ﻿using System.Text.RegularExpressions;
 using SPA.PQL.Enums;
 using SPA.PQL.QueryElements;
+using SPA.Simple.Elements;
 
 namespace SPA.PQL.Parser {
     internal static class PQLParserHelper {
-        private static readonly string[] ProcedureEntityTypes = ["Procedure"];
-        private static readonly string[] StatementListEntityTypes = ["StatementList"];
+        private static readonly ProgramElementType[] ProcedureEntityTypes = [ProgramElementType.Procedure];
+        private static readonly ProgramElementType[] StatementListEntityTypes = [ProgramElementType.StatementList];
 
-        private static readonly string[] StatementEntityTypes =
-            ["Assign", "Call", "Plus", "Minus", "Times", "Variable", "Constant", "While", "If"];
+        private static readonly ProgramElementType[] StatementEntityTypes =
+        [
+            ProgramElementType.Assign, ProgramElementType.Call, ProgramElementType.Plus, ProgramElementType.Minus,
+            ProgramElementType.Times, ProgramElementType.Variable, ProgramElementType.Constant,
+            ProgramElementType.While, ProgramElementType.If
+        ];
 
-        private static readonly string[] AssignEntityTypes = ["Assign"];
-        private static readonly string[] PlusEntityTypes = ["Plus"];
-        private static readonly string[] MinusEntityTypes = ["Minus"];
-        private static readonly string[] TimesEntityTypes = ["Times"];
-        private static readonly string[] VariableEntityTypes = ["Variable"];
-        private static readonly string[] ConstantEntityTypes = ["Constant"];
-        private static readonly string[] WhileEntityTypes = ["While"];
-        private static readonly string[] IfEntityTypes = ["If"];
-        private static readonly string[] CallEntityTypes = ["Call"];
-        private static readonly string[] ProgramLineEntityTypes = ["Line"];
+        private static readonly ProgramElementType[] AssignEntityTypes = [ProgramElementType.Assign];
+        private static readonly ProgramElementType[] PlusEntityTypes = [ProgramElementType.Plus];
+        private static readonly ProgramElementType[] MinusEntityTypes = [ProgramElementType.Minus];
+        private static readonly ProgramElementType[] TimesEntityTypes = [ProgramElementType.Times];
+        private static readonly ProgramElementType[] VariableEntityTypes = [ProgramElementType.Variable];
+        private static readonly ProgramElementType[] ConstantEntityTypes = [ProgramElementType.Constant];
+        private static readonly ProgramElementType[] WhileEntityTypes = [ProgramElementType.While];
+        private static readonly ProgramElementType[] IfEntityTypes = [ProgramElementType.If];
+        private static readonly ProgramElementType[] CallEntityTypes = [ProgramElementType.Call];
+        private static readonly ProgramElementType[] ProgramLineEntityTypes = [ProgramElementType.StatementList];
 
-        public static string[] GetEntityTypesByTypeName(string typeName)
+        public static ProgramElementType[] GetEntityTypesByTypeName(string typeName)
         {
             switch (typeName)
             {
@@ -53,7 +58,7 @@ namespace SPA.PQL.Parser {
                     return ProgramLineEntityTypes;
             }
 
-            return Array.Empty<string>();
+            return Array.Empty<ProgramElementType>();
         }
 
         public static bool IsValidVariableName(string variableName)
@@ -80,27 +85,38 @@ namespace SPA.PQL.Parser {
             return Regex.IsMatch(expression, "^\"[a-zA-Z][a-zA-Z0-9#]\"$");
         }
 
-        public static bool IsValidRelationName(string relationName)
+        public static RelationType? ParseRelationName(string relationName)
         {
             switch (relationName)
             {
                 case "Parent":
+                    return RelationType.Parent;
                 case "Parent*":
+                    return RelationType.ParentAll;
                 case "Next":
+                    return RelationType.Next;
                 case "Next*":
+                    return RelationType.NextAll;
                 case "Assign":
-                case "Modifies":
+                    return RelationType.Assign;
+                case "Modifies": return RelationType.Modifies;
                 case "Uses":
+                    return RelationType.Uses;
                 case "Calls":
+                    return RelationType.Calls;
                 case "Calls*":
+                    return RelationType.CallsAll;
                 case "Follows":
+                    return RelationType.Follows;
                 case "Follows*":
+                    return RelationType.FollowsAll;
                 case "Affects":
+                    return RelationType.Affects;
                 case "Affects*":
-                    return true;
+                    return RelationType.AffectsAll;
             }
 
-            return false;
+            return null;
         }
 
         public static List<KeyValuePair<ConditionType, string>> GetAllConditionSubstrings(string expression)

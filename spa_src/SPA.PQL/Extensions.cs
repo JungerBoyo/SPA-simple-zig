@@ -2,17 +2,17 @@
 
 namespace SPA.PQL {
     public static class Extensions {
-        public static string[] SplitAt(this string str, char c)
+        public static string[] SplitAt(this string str, string regex)
         {
-            int index = str.IndexOf(c);
-
-            if (index < 0)
+            var match = Regex.Match(str, regex);
+            
+            if (!match.Success)
                 return [str];
 
-            if (index == str.Length - 1)
-                return [str.Substring(0, index)];
+            if (match.Index == str.Length - 1)
+                return [str.Substring(0, match.Index)];
 
-            return [str.Substring(0, index), str.Substring(index + 1)];
+            return [str.Substring(0, match.Index), str.Substring(match.Index + match.Length)];
         }
 
         public static int IndexOfAny(this string str, IEnumerable<string> searchedPhrases)

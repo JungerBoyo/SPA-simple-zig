@@ -1,9 +1,11 @@
 ﻿using SPA.PQL.Abstractions;
+using SPA.PQL.Enums;
+using SPA.PQL.Evaluator;
 using SPA.PQL.Parser;
 
 namespace SPA.PQL.QueryElements {
     internal sealed class PQLSuchThatCondition : PQLBaseCondition {
-        public required string RelationName { get; set; }
+        public required RelationType Relation { get; set; }
         public required PQLSuchThatConditionReference LeftReference { get; set; }
         public required PQLSuchThatConditionReference RightReference { get; set; }
         
@@ -26,6 +28,43 @@ namespace SPA.PQL.QueryElements {
             }
             
             //TODO: Validate references based on RelationName
+        }
+
+        public override void Evaluate(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        {
+            
+            
+            switch (Relation)
+            {
+                case RelationType.Parent:
+                    break;
+                case RelationType.ParentAll:
+                    break;
+                case RelationType.Next:
+                    break;
+                case RelationType.NextAll:
+                    break;
+                case RelationType.Assign:
+                    break;
+                case RelationType.Modifies:
+                    break;
+                case RelationType.Uses:
+                    break;
+                case RelationType.Calls:
+                    break;
+                case RelationType.CallsAll:
+                    break;
+                case RelationType.Follows:
+                    break;
+                case RelationType.FollowsAll:
+                    break;
+                case RelationType.Affects:
+                    break;
+                case RelationType.AffectsAll:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
     }
 }

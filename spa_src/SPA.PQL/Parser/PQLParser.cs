@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using SPA.PQL.Abstractions;
 using SPA.PQL.Enums;
 using SPA.PQL.Exceptions;
@@ -80,7 +79,7 @@ namespace SPA.PQL.Parser {
         {
             foreach (var variableDeclaration in variableDeclarations)
             {
-                var tokens = variableDeclaration.SplitAt(' ');
+                var tokens = variableDeclaration.SplitAt("\\s+");
                 if (tokens.Length != 2)
                     throw new InvalidVariableDeclarationException(variableDeclaration);
 
@@ -200,7 +199,9 @@ namespace SPA.PQL.Parser {
 
             string relationName = condition.Substring(0, leftParenthesisIndex).Trim();
 
-            if (!PQLParserHelper.IsValidRelationName(relationName))
+            var relationType = PQLParserHelper.ParseRelationName(relationName);
+            
+            if (relationType is null)
                 throw new InvalidSuchThatConditionDeclarationException(condition);
 
             int callArgumentsLiteralLength = rightParenthesisIndex - leftParenthesisIndex - 1;
@@ -220,7 +221,7 @@ namespace SPA.PQL.Parser {
 
             return new PQLSuchThatCondition()
             {
-                RelationName = relationName,
+                Relation = relationType.Value,
                 LeftReference = ParseSuchThatConditionReference(arguments[0]),
                 RightReference = ParseSuchThatConditionReference(arguments[1]),
             };

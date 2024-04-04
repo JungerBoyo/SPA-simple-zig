@@ -2,7 +2,6 @@
 
 namespace SPA.PQL.Abstractions {
     public interface IPKBInterface {
-        int Init(string path);
-        Program LoadProgram();
+        List<ProgramElement> Init(string path);
     }
 }
