@@ -25,6 +25,8 @@ var error_buffer_stream = std.io.fixedBufferStream(error_buffer[0..]);
 var result_buffer: [RESULT_BUFFER_SIZE]u8 = .{0} ** RESULT_BUFFER_SIZE;
 var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
+var result_buffer_size: u32 = 0;
+
 var instance: ?SpaInstance = null;
 
 fn makeInstance(simple_src_file_path: [*:0]const u8) Error!SpaInstance {
@@ -51,6 +53,42 @@ fn makeInstance(simple_src_file_path: [*:0]const u8) Error!SpaInstance {
     return .{ .ast = ast };
 }
 
+pub const NodeC = extern struct {
+    type: c_uint = 0,
+    statement_id: c_uint = 0,
+    line_no: c_int = 0,
+    column_no: c_int = 0,
+};
+
+pub export fn GetNodeMetadata(id: c_uint) callconv(.C) NodeC {
+    if (instance) |value| {
+        if (id < value.ast.nodes.len) {
+            const node = value.ast.nodes[@intCast(id)];
+            return .{
+                .type = @intFromEnum(node.type),
+                .statement_id = @intCast(node.metadata.statement_id),
+                .line_no = @intCast(node.metadata.line_no),
+                .column_no = @intCast(node.metadata.column_no)
+            };
+        }
+    }
+    return .{};
+}
+
+pub export fn GetNodeValue(id: c_uint) callconv(.C) [*:0]const u8 {
+    if (instance) |value| {
+        if (id < value.ast.nodes.len) {
+            const node = value.ast.nodes[@intCast(id)];
+            if (node.value) |str| {
+                _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
+                _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+            }
+        }
+    }
+    result_buffer[0] = 0;
+    return @ptrCast(result_buffer[0..].ptr);
+}
+
 pub export fn Init(simple_src_file_path: [*:0]const u8) callconv(.C) c_uint {
     instance = makeInstance(simple_src_file_path) catch |e| {
         return @intFromEnum(errorToEnum(e));
@@ -67,35 +105,56 @@ pub export fn Deinit() callconv(.C) c_uint {
     return @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
 }
 
-pub export fn GetError() callconv(.C) [*:0]const u8 {
+pub export fn GetErrorMessage() callconv(.C) [*:0]const u8 {
     return &error_buffer;
+}
+// TODO
+// pub export fn GetErrorCode() callconv(.C)  {
+
+// }
+
+pub export fn GetResultSize() callconv(.C) c_uint {
+    return result_buffer_size;
 }
 
 pub export fn Follows(s1_type: c_uint, s1: c_uint, s2_type: c_uint, s2: c_uint) callconv(.C) [*c]c_uint {
-    // can't select 2 statments, can't select 
-    if ((s1 == 0 and s2 == 0) or (s1 == 0xFF_FF_FF_FF and s2 == 0xFF_FF_FF_FF)) {
-        return 0x0;
-    }
-
+    result_buffer_size = 0;
     if (instance) |value| {
-        _ = value.ast.follows(
+        result_buffer_size = value.ast.follows(
             result_buffer_stream.writer(),
             @enumFromInt(@as(u32, s1_type)),
             @intCast(s1), 
             @enumFromInt(@as(u32, s2_type)),
             @intCast(s2)
-        ) catch unreachable;
+        ) catch {
+            return 0x0;
+            // if (e == AST.Error.UNSUPPORTED_COMBINATION) { return 0x0; }
+            // else { return 0x0; }
+        };
+        result_buffer_stream.reset();
         return @alignCast(@ptrCast(result_buffer[0..].ptr));
     }
 
     return 0x0;
 }
 
-pub export fn FollowsTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
+pub export fn FollowsTransitive(s1_type: c_uint, s1: c_uint, s2_type: c_uint, s2: c_uint) callconv(.C) [*c]c_uint {
+    result_buffer_size = 0;
     if (instance) |value| {
-        return @intCast(@intFromBool(value.ast.followsTransitive(@intCast(s1), @intCast(s2))));
+        result_buffer_size = value.ast.followsTransitive(
+            result_buffer_stream.writer(),
+            @enumFromInt(@as(u32, s1_type)),
+            @intCast(s1), 
+            @enumFromInt(@as(u32, s2_type)),
+            @intCast(s2)
+        ) catch {
+            return 0x0;
+        };
+        result_buffer_stream.reset();
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
     }
-    return 0;
+
+    return 0x0;
 }
 
 pub export fn Parent(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
@@ -115,7 +174,7 @@ pub export fn ParentTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
 pub const Error = error{ 
     SIMPLE_FILE_OPEN_ERROR, 
     TRIED_TO_DEINIT_EMPTY_INSTANCE
-} || Tokenizer.Error || ASTParser.Error;
+} || Tokenizer.Error || ASTParser.Error || AST.Error;
 
 pub const ErrorEnum = enum(u32) {
     OK = 0,
@@ -140,6 +199,8 @@ pub const ErrorEnum = enum(u32) {
     LEFT_BRACE_NOT_FOUND,        
     KEYWORD_NOT_FOUND,
     PROCEDURE_NAME_NOT_FOUND,
+    UNSUPPORTED_COMBINATION,
+    WRITER_ERROR
 };
 
 pub fn errorToEnum(err: Error) ErrorEnum {

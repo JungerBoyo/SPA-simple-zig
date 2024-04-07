@@ -30,6 +30,33 @@ fn getAST(simple_src: []const u8) !*AST {
 
     return try parser.parse();
 }
+fn checkExecute(
+    ast: *AST,
+    func_ptr: *const fn(self: *AST, std.io.FixedBufferStream([]u8).Writer, NodeType, u32, NodeType, u32) anyerror!u32,
+    stream: *std.io.FixedBufferStream([]u8),
+    s1_type: NodeType, s1: u32,
+    s2_type: NodeType, s2: u32,
+    expected: u32,
+) !void {
+    try std.testing.expectEqual(
+        expected, 
+        try func_ptr(ast,
+            stream.writer(), 
+            s1_type, s1, s2_type, s2
+        )
+    );
+    stream.reset();
+}
+
+fn checkResult(ast: *AST, buffer: *const [4]u8, expected: u32, convert: bool) !void {
+    if (convert) {
+        try std.testing.expectEqual(expected, ast.nodes[std.mem.readInt(u32, buffer, .Little)].metadata.statement_id);
+    } else {
+        try std.testing.expectEqual(expected, std.mem.readInt(u32, buffer, .Little));
+    }
+}
+
+
 pub fn main() !void {
     const simple = 
     \\procedure Second {
@@ -56,33 +83,9 @@ pub fn main() !void {
 
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
-
-    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .NONE, 1, .NONE, 2));
-    result_buffer_stream.reset();
-    try std.testing.expect(1 == std.mem.readInt(u32, result_buffer[0..4], .Little));
-
-    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, 2, .NONE, AST.STATEMENT_SELECTED));
-    result_buffer_stream.reset();
-    try std.testing.expect(3 == std.mem.readInt(u32, result_buffer[0..4], .Little));
     
-    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .WHILE, AST.STATEMENT_SELECTED, .IF, 7));
-    result_buffer_stream.reset();
-    try std.testing.expect(3 == std.mem.readInt(u32, result_buffer[0..4], .Little));
-    
-    try std.testing.expect(0 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_SELECTED, .IF, 7));
-    result_buffer_stream.reset();
-    try std.testing.expect(0 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_SELECTED, .IF, AST.STATEMENT_UNDEFINED));
-    result_buffer_stream.reset();
-
-    
-    try std.testing.expect(1 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_SELECTED, .WHILE, AST.STATEMENT_UNDEFINED));
-    result_buffer_stream.reset();
-    try std.testing.expect(2 == std.mem.readInt(u32, result_buffer[0..4], .Little));
-
-    try std.testing.expect(3 == try ast.follows(result_buffer_stream.writer(), .ASSIGN, AST.STATEMENT_UNDEFINED, .ASSIGN, AST.STATEMENT_SELECTED));
-    
-    try std.testing.expect(2 == std.mem.readInt(u32, result_buffer[0..4], .Little));
-    try std.testing.expect(11 == std.mem.readInt(u32, result_buffer[4..8], .Little));
-    try std.testing.expect(12 == std.mem.readInt(u32, result_buffer[8..12], .Little));
+    try checkExecute(ast, AST.followsTransitive, &result_buffer_stream, .ASSIGN, AST.STATEMENT_SELECTED, .IF, AST.STATEMENT_UNDEFINED, 2);
+    try checkResult(ast, result_buffer[0..4], 1, true);
+    try checkResult(ast, result_buffer[4..8], 2, true);
 }
 
