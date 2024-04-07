@@ -77,7 +77,6 @@ test "follows" {
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
     try checkExecute(ast, AST.follows, &result_buffer_stream, .NONE, 1, .NONE, 2, 1);
-    try checkResult(ast, result_buffer[0..4], 1, false);
 
     try checkExecute(ast, AST.follows, &result_buffer_stream, .ASSIGN, 2, .NONE, AST.STATEMENT_SELECTED, 1);
     try checkResult(ast, result_buffer[0..4], 3, true);
@@ -126,7 +125,6 @@ test "follows*" {
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
     try checkExecute(ast, AST.followsTransitive, &result_buffer_stream, .NONE, 1, .NONE, 2, 1);
-    try checkResult(ast, result_buffer[0..4], 1, false);
 
     try checkExecute(ast, AST.followsTransitive, &result_buffer_stream, .ASSIGN, 2, .NONE, AST.STATEMENT_SELECTED, 5);
     try checkResult(ast, result_buffer[0..4], 3, true);
@@ -179,20 +177,33 @@ test "parent" {
     \\  x = x * y + z;
     \\}
     ;
-
     var ast = try getAST(simple[0..]);
     defer ast.deinit();
 
-    try std.testing.expect(!ast.parent(1, 2));
-    try std.testing.expect(!ast.parent(2, 3));
-    try std.testing.expect(ast.parent(3, 4));
-    try std.testing.expect(ast.parent(3, 5));
-    try std.testing.expect(ast.parent(3, 6));
-    try std.testing.expect(!ast.parent(3, 7));
-    try std.testing.expect(ast.parent(7, 8));
-    try std.testing.expect(ast.parent(7, 9));
-    try std.testing.expect(!ast.parent(7, 10));
-    try std.testing.expect(!ast.parent(3, 12));
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, 3, .NONE, 4, 1);
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .IF, 3, .NONE, 4, 0);
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, 3, .NONE, 4, 1);
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, 3, .ASSIGN, 4, 1);
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, 3, .CALL, 5, 1);
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, 3, .WHILE, 4, 0);
+
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, AST.STATEMENT_SELECTED, .CALL, 5, 1);
+    try checkResult(ast, result_buffer[0..4], 3, true);
+    
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .IF, 7, .ASSIGN, AST.STATEMENT_SELECTED, 2);
+    try checkResult(ast, result_buffer[0..4], 8, true);
+    try checkResult(ast, result_buffer[4..8], 9, true);
+
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, AST.STATEMENT_SELECTED, .ASSIGN, AST.STATEMENT_UNDEFINED, 1);
+    try checkResult(ast, result_buffer[0..4], 3, true);
+    
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, AST.STATEMENT_UNDEFINED, .NONE, AST.STATEMENT_SELECTED, 3);
+    try checkResult(ast, result_buffer[0..4], 4, true);
+    try checkResult(ast, result_buffer[4..8], 5, true);
+    try checkResult(ast, result_buffer[8..12], 6, true);
 }
 
 

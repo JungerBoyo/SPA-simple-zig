@@ -83,9 +83,7 @@ pub fn main() !void {
 
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
-    
-    try checkExecute(ast, AST.followsTransitive, &result_buffer_stream, .ASSIGN, AST.STATEMENT_SELECTED, .IF, AST.STATEMENT_UNDEFINED, 2);
-    try checkResult(ast, result_buffer[0..4], 1, true);
-    try checkResult(ast, result_buffer[4..8], 2, true);
+
+    try checkExecute(ast, AST.parent, &result_buffer_stream, .WHILE, AST.STATEMENT_UNDEFINED, .NONE, AST.STATEMENT_SELECTED, 3);
 }
 
