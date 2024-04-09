@@ -7,7 +7,11 @@ pub fn Ast(comptime ResultIntType: type) type { return struct {
 
 const Self = @This();
 
-pub const STATEMENT_UNDEFINED: u32 = 0xFFFFFFFF;
+pub const Error = error {
+    UNSUPPORTED_COMBINATION,    
+};
+
+pub const STATEMENT_UNDEFINED: u32 = 0xFF_FF_FF_FF;
 pub const STATEMENT_SELECTED: u32 = 0x0;
 
 arena_allocator: std.heap.ArenaAllocator,
@@ -37,7 +41,7 @@ fn findStatement(self: *Self, statement_id: u32) usize {
 
 /// follows check doesn't care about
 /// which statement follows which
-pub fn followsCheck(self: *Self,
+fn followsCheck(self: *Self,
     s1_type: NodeType, s1: u32,
     s2_type: NodeType, s2: u32,
 ) bool {
@@ -52,14 +56,77 @@ pub fn followsCheck(self: *Self,
         s1_node.parent_index == s2_node.parent_index;
 }
 
-pub fn getFollowingStatement(self: *Self, statement_id: u32, polarity: i32) u32 {
+pub fn getFollowingStatement(self: *Self, statement_id: u32, step: i32) u32 {
     const s_index = self.findStatement(statement_id);
     if (s_index == 0) {
         return 0;
     }
-    const index = @as(usize, @intCast(@as(i32, @intCast(s_index)) + polarity));
+    const index = @as(usize, @intCast(@as(i32, @intCast(s_index)) + step));
     if (index < self.nodes.len) {
         return self.nodes[index].metadata.statement_id;
+    }
+    return 0;
+}
+
+fn isModeSelUndef(s1: u32, s2: u32) bool {
+    return ((s1 ^ s2) == STATEMENT_UNDEFINED);
+}
+fn isModeSelDef(s1: u32, s2: u32) bool {
+    return (((s1 | s2) != 0) and ((s1 ^ s2) == s1 or (s1 ^ s2) == s2));
+}
+fn isModeDef(s1: u32, s2: u32) bool {
+    return (((s1 | s2) != 0) and (s1 ^ s2) != STATEMENT_UNDEFINED);
+}
+
+fn followsModeSelUndef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_sel_type: NodeType, s_undef_type: NodeType,
+    begin: usize, step: i32
+) !u32 {
+    var written: u32 = 0;
+    for (begin..self.statement_map.len) |i| {
+        const s_sel: u32 = @intCast(i);
+        const s_undef: u32 = self.getFollowingStatement(s_sel, step);
+        if (s_undef == 0) {
+            continue;
+        }
+        if (self.followsCheck(s_sel_type, s_sel, s_undef_type, s_undef)) {
+            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(self.statement_map[i])));
+            written += 1;
+        }
+    }
+    return written;
+}
+fn followsModeSelDef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_def: u32, s_def_type: NodeType, s_sel_type: NodeType,
+    step: i32
+) !u32 {
+    const s_sel = self.getFollowingStatement(s_def, step);
+    if (s_sel == 0) {
+        return 0;
+    }
+    if (self.followsCheck(s_def_type, s_def, s_sel_type, s_sel)) {
+        try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(self.statement_map[s_sel])));
+        return 1;
+    }
+    return 0;
+}
+
+fn followsModeDef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s1_type: NodeType, s1: u32,
+    s2_type: NodeType, s2: u32,
+) !u32 {
+    const s1_index = self.findStatement(s1);
+    if (s1_index == 0) {
+        return 0;
+    }
+    if (s1_index + 1 < self.nodes.len and self.nodes[s1_index + 1].metadata.statement_id == s2) {
+        if (self.followsCheck(s1_type, s1, s2_type, s2)) {
+            try result_writer.writeIntLittle(ResultIntType, 1);
+            return 1;
+        }
     }
     return 0;
 }
@@ -69,115 +136,159 @@ pub fn follows(self: *Self,
     s1_type: NodeType, s1: u32,
     s2_type: NodeType, s2: u32,
 ) !u32 {
-    var written: u32 = 0;
-
-    if (self.statement_map.len < 2) {
-        return written;
+    if (self.statement_map.len < 2 or s1 == s2) {
+        return 0;
     }
-
     // both undefined
-    if (s1 == STATEMENT_UNDEFINED or s2 == STATEMENT_UNDEFINED)  {
-        const polarity: i32 = if (s1 == STATEMENT_SELECTED) 1 else -1;
-        const begin: usize = if (s1 == STATEMENT_SELECTED) 1 else 2;
-        const sx_type = if (s1 == STATEMENT_SELECTED) s1_type else s2_type;
-        const sy_type = if (s1 == STATEMENT_SELECTED) s2_type else s1_type;
-        for (begin..self.statement_map.len) |i| {
-            const sx: u32 = @intCast(i);
-            const sy: u32 = self.getFollowingStatement(sx, polarity);
-            if (sy == 0) {
-                continue;
-            }
-            if (self.followsCheck(sx_type, sx, sy_type, sy)) {
-                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(i)));
-                written += 1;
-            }
-        }
+    if (isModeSelUndef(s1, s2))  {
+        return if (s1 == STATEMENT_SELECTED)
+                try self.followsModeSelUndef(result_writer, s1_type, s2_type, 1, 1)
+            else
+                try self.followsModeSelUndef(result_writer, s2_type, s1_type, 2, -1);
     // one of the statements defined
-    } else if (s1 == STATEMENT_SELECTED or s2 == STATEMENT_SELECTED) {
-        const s: u32 = if (s1 == STATEMENT_SELECTED) s2 else s1;
-        const polarity: i32 = if (s1 == STATEMENT_SELECTED) -1 else 1;
-        const s_type: NodeType = if (s1 == STATEMENT_SELECTED) s2_type else s1_type;
-        const other_type: NodeType = if (s1 == STATEMENT_SELECTED) s1_type else s2_type;
-
-        const other_s = self.getFollowingStatement(s, polarity);
-        if (other_s == 0) {
-            return written;
-        }
-        if (self.followsCheck(s_type, s, other_type, other_s)) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(other_s)));
-            written += 1;
-        }
+    } else if (isModeSelDef(s1, s2)) {
+        return if (s1 == STATEMENT_SELECTED)
+                try self.followsModeSelDef(result_writer, s2, s2_type, s1_type, -1)
+            else
+                try self.followsModeSelDef(result_writer, s1, s1_type, s2_type, 1);
     // both statements defined
+    } else if (isModeDef(s1, s2)) {
+        return try self.followsModeDef(result_writer, s1_type, s1, s2_type, s2);
     } else {
-        const s1_index = self.findStatement(s1);
-        if (s1_index == 0) {
-            return written;
+        return error.UNSUPPORTED_COMBINATION;
+    }
+    return 0;
+}
+
+fn followsTransitiveModeSelUndef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_sel_type: NodeType, s_undef_type: NodeType,
+    begin: usize, step: i32
+) !u32 {
+    var written: u32 = 0;
+    for (begin..self.statement_map.len) |i| {
+        const s_sel_index = self.statement_map[i];
+        const s_sel_node = self.nodes[s_sel_index];
+        if (s_sel_node.type != s_sel_type and s_sel_type != .NONE) {
+            continue;            
         }
-        if (s1_index + 1 < self.nodes.len and self.nodes[s1_index + 1].metadata.statement_id == s2) {
-            if (self.followsCheck(s1_type, s1, s2_type, s2)) {
-                try result_writer.writeIntLittle(ResultIntType, 1);
-                written += 1;
+        
+        var s_undef_index = @as(i32, @intCast(s_sel_index)) + step;
+        while (s_undef_index < self.nodes.len and s_undef_index > 0) : (s_undef_index += step) {
+            const s_undef_node = self.nodes[@intCast(s_undef_index)];
+            if (s_undef_node.parent_index == s_sel_node.parent_index) {
+                if (s_undef_node.type == s_undef_type or s_undef_type == .NONE) {
+                    try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_sel_index)));
+                    written += 1;
+                    break;
+                }
+            } else {
+                break;
             }
         }
     }
-
     return written;
 }
 
-// pub fn followsParametric(self: *Self, s1: u32, s2: u32, result_writer: std.io.FixedBufferStream([]u8).Writer) void {
-//     // if s1 is parametric polarity (step) is 1 else it is negative -1
-//     const polarity: i32 = if (s1 == 0) -1 else 1;
-//     const s_index = self.findStatement(if (s1 == 0) s2 else s1);
-
-//     if (s_index == 0) {
-//         return;
-//     }
-//     var i: usize = s_index + polarity;
-//     // doesn't need to check for < 0 since s1 nor s2 can be 0 in this context
-//     if (s_index + i < self.nodes.len and self.nodes[s_index].parent_index == self.nodes[s_index + i].parent_index) {
-//         result_writer.writeIntLittle(ResultIntType, self.nodes[s_index + i].metadata.statement_id);
-//     }
-// }
-
-pub fn followsTransitive(self: *Self, s1: u32, s2: u32) bool {
-    const s1_index = self.findStatement(s1);
-    if (s1_index == 0) {
-        return false;
+fn followsTransitiveModeSelDef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_def: u32, s_def_type: NodeType, s_sel_type: NodeType,
+    step: i32
+) !u32 {
+    const s_def_index = self.findStatement(s_def);
+    if (s_def_index == 0 or self.nodes[s_def_index].type != s_def_type) {
+        return 0;
     }
-
-    const s1_parent_index = self.nodes[s1_index].parent_index;
-
-    for (self.nodes[(s1_index + 1)..]) |s2_node| {
-        if (s2_node.parent_index == s1_parent_index) {
-            if (s2_node.metadata.statement_id == s2) {
-                return true;
+    const s_def_parent_index = self.nodes[s_def_index].parent_index; 
+    var s_sel_index: i32 = @as(i32, @intCast(s_def_index)) + step;
+    var written: u32 = 0;
+    while (s_sel_index < self.nodes.len and s_sel_index > 0) : (s_sel_index += step) {
+        const s_sel_node = self.nodes[@intCast(s_sel_index)];
+        if (s_sel_node.parent_index == s_def_parent_index) {
+            if (s_sel_type == .NONE or s_sel_node.type == s_sel_type) {
+                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_sel_index)));
+                written += 1;
             }
         } else {
-            // early exit if left given parent's "children region"
-            return false;
+            break;
         }
-    } 
-    return false;
+    }
+    return written;
+}
+
+fn followsTransitiveModeDef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s1_type: NodeType, s1: u32,
+    s2_type: NodeType, s2: u32,
+) !u32 {
+    const s1_index = self.findStatement(s1);
+    if (s1_index == 0 or (self.nodes[s1_index].type != s1_type and s1_type != .NONE)) {
+        return 0;
+    }
+    const s1_parent_index = self.nodes[s1_index].parent_index; 
+    for (self.nodes[(s1_index + 1)..]) |s2_node| {
+        if (s2_node.parent_index == s1_parent_index) {
+            if (s2_node.metadata.statement_id == s2 and 
+                (s2_node.type == s2_type or s2_type == .NONE)) {
+                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+                return 1;
+            }
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+pub fn followsTransitive(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s1_type: NodeType, s1: u32,
+    s2_type: NodeType, s2: u32,
+) !u32 {
+    if (self.statement_map.len < 2 or s1 == s2) {
+        return 0;
+    }
+    // both undefined
+    if (isModeSelUndef(s1, s2))  {
+        return if (s1 == STATEMENT_SELECTED)
+                try self.followsTransitiveModeSelUndef(result_writer, s1_type, s2_type, 1, 1)
+            else
+                try self.followsTransitiveModeSelUndef(result_writer, s2_type, s1_type, 2, -1);
+    // one of the statements defined
+    } else if (isModeSelDef(s1, s2)) {
+        return if (s1 == STATEMENT_SELECTED)
+                try self.followsTransitiveModeSelDef(result_writer, s2, s2_type, s1_type, -1)
+            else
+                try self.followsTransitiveModeSelDef(result_writer, s1, s1_type, s2_type, 1);
+    // both statements defined
+    } else if (isModeDef(s1, s2)) {
+        return try self.followsTransitiveModeDef(result_writer, s1_type, s1, s2_type, s2);
+    } else {
+        return error.UNSUPPORTED_COMBINATION;
+    }
+    return 0;
 }
 
 
-fn findInStmtListBinary(children_slice: []const Node, statement_id: u32) bool {
+fn findInStmtListBinary(children_slice: []const Node, statement_id: u32, statement_type: NodeType) bool {
     const child_index = children_slice.len/2;
     if (children_slice.len == 0) {
         return false;
     }
     if (children_slice.len == 1) {
-        return children_slice[child_index].metadata.statement_id == statement_id;
+        return 
+            children_slice[child_index].metadata.statement_id == statement_id and 
+            (children_slice[child_index].type == statement_type or statement_type == .NONE);
     }
 
     // don't have to perform the `children_slice[child_index].metadata.statement_id == 0` check
     // since children of statement list can't be PROGRAM, PROCEDURE or STMT_LIST
      if (children_slice[child_index].metadata.statement_id < statement_id) {
-        return findInStmtListBinary(children_slice[(child_index+1)..], statement_id);        
+        return findInStmtListBinary(children_slice[(child_index+1)..], statement_id, statement_type);        
     } else if (children_slice[child_index].metadata.statement_id > statement_id) {
-        return findInStmtListBinary(children_slice[0..(child_index)], statement_id);
+        return findInStmtListBinary(children_slice[0..(child_index)], statement_id, statement_type);
     } else {
-        return true;
+        return (children_slice[child_index].type == statement_type or statement_type == .NONE);
     }
 
 }
@@ -187,25 +298,156 @@ fn getStmtListChildren(self: *Self, stmt_list_index: usize) []const Node {
     const children_end = container.children_index_or_lhs_child_index + container.children_count_or_rhs_child_index;
     return self.nodes[children_begin..children_end];
 }
+fn getIfElseStmtListChildren(self: *Self, if_index: usize) []const Node {
+    const if_node = self.nodes[if_index];
+    const if_stmt_list = self.nodes[if_node.children_index_or_lhs_child_index + 1];
+    const else_stmt_list = self.nodes[if_node.children_index_or_lhs_child_index + 3];
+    const children_begin = if_stmt_list.children_index_or_lhs_child_index;
+    const children_end = 
+        else_stmt_list.children_index_or_lhs_child_index + 
+        else_stmt_list.children_count_or_rhs_child_index;
+    return self.nodes[children_begin..children_end];
+}
 
-pub fn parent(self: *Self, s1: u32, s2: u32) bool {
-    for (self.nodes) |s1_node| {
-        if (s1_node.metadata.statement_id == s1) {
-            if (s1_node.type == .WHILE) {
-                // second child of `while` is stmt list
-                return findInStmtListBinary(self.getStmtListChildren(s1_node.children_index_or_lhs_child_index + 1), s2);
-            } else if (s1_node.type == .IF) {
-                return 
-                    // second child of `if` is stmt list
-                    findInStmtListBinary(self.getStmtListChildren(s1_node.children_index_or_lhs_child_index + 1), s2) or 
-                    // third child of `if` is stmt list
-                    findInStmtListBinary(self.getStmtListChildren(s1_node.children_index_or_lhs_child_index + 2), s2);
-            } else {
-                return false;
+fn parentModeSelChildUndefParent(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_parent_type: NodeType, s_child_type: NodeType
+) !u32 {
+    var written: u32 = 0;
+    for (self.statement_map[1..]) |s_child_index| {
+        const s_child_node = self.nodes[s_child_index];
+        if (s_child_node.type == s_child_type or s_child_type == .NONE) {
+            const stmt_list_index = s_child_node.parent_index;
+            const stmt_list_node = self.nodes[stmt_list_index];
+            const parent_index = stmt_list_node.parent_index;    
+            const parent_node = self.nodes[parent_index];
+            if (parent_node.type == s_parent_type) {
+                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_child_index)));
+                written += 1;
             }
         }
     }
-    return false;
+    return written;
+}
+fn parentModeSelParentUndefChild(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_parent_type: NodeType, s_child_type: NodeType
+) !u32 {
+    var written: u32 = 0;
+    for (self.statement_map[1..]) |s_parent_index| {
+        const s_parent_node = self.nodes[s_parent_index];
+        if (s_parent_node.type == s_parent_type) {
+            const children_slice = if (s_parent_type == .WHILE)
+                    self.getStmtListChildren(s_parent_node.children_index_or_lhs_child_index + 1)
+                else
+                    self.getIfElseStmtListChildren(s_parent_index);
+
+            for (children_slice) |child_node| {
+                if(child_node.type == s_child_type) {
+                    try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)));
+                    written += 1;
+                    break;
+                }
+            }
+        }
+    }
+    return written;
+}
+fn parentModeSelParentDefChild(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_child: u32, s_child_type: NodeType, s_parent_type: NodeType
+) !u32 {
+    const s_child_index = self.findStatement(s_child);
+    const s_child_node = self.nodes[s_child_index];
+    if (s_child_index == 0 or s_child_node.type != s_child_type) {
+        return 0;
+    }
+    const stmt_list_index = s_child_node.parent_index;
+    const stmt_list_node = self.nodes[stmt_list_index];
+    const parent_index = stmt_list_node.parent_index;
+    const parent_node = self.nodes[parent_index];
+    if (parent_node.type == s_parent_type) {
+        try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(parent_index)));
+        return 1;
+    }
+    return 0;
+}
+fn parentModeSelChildDefParent(self: *Self, 
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s_parent: u32, s_parent_type: NodeType, s_child_type: NodeType
+) !u32 {
+    const s_parent_index = self.findStatement(s_parent);
+    const s_parent_node = self.nodes[s_parent_index];
+    if (s_parent_index == 0 or s_parent_node.type != s_parent_type) {
+        return 0;
+    }
+    const children_index = self.nodes[s_parent_node.children_index_or_lhs_child_index + 1].children_index_or_lhs_child_index;
+    const children_slice = if (s_parent_type == .WHILE)
+            self.getStmtListChildren(s_parent_node.children_index_or_lhs_child_index + 1)
+        else
+            self.getIfElseStmtListChildren(s_parent_index);
+    var written: u32 = 0;
+    for (children_slice, children_index..) |child_node, i| {
+        if (child_node.type == s_child_type or s_child_type == .NONE) {
+            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(i)));
+            written += 1;
+        }
+    }
+    return written;
+}
+
+fn parentModeDef(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s1_type: NodeType, s1: u32,
+    s2_type: NodeType, s2: u32,
+) !u32 {
+    const s1_index = self.findStatement(s1);
+    const s1_node = self.nodes[s1_index];
+    if (s1_index == 0 or s1_node.type != s1_type) {
+        return 0;
+    }
+    if (s1_node.type == .WHILE) {
+        // second child of `while` is stmt list
+        if (findInStmtListBinary(self.getStmtListChildren(s1_node.children_index_or_lhs_child_index + 1), s2, s2_type)) {
+            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+            return 1;
+        }
+    } else if (s1_node.type == .IF) {
+        if (findInStmtListBinary(self.getIfElseStmtListChildren(s1_index), s2, s2_type)) {
+            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+            return 1;
+        }
+    }
+    return 0;
+}
+
+pub fn parent(self: *Self,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+    s1_type: NodeType, s1: u32,
+    s2_type: NodeType, s2: u32,
+) !u32 {
+    if (self.statement_map.len < 2 or s1 == s2 or (s1_type != .IF and s1_type != .WHILE)) {
+        return 0;
+    }
+    // both undefined
+    if (isModeSelUndef(s1, s2))  {
+        return if (s1 == STATEMENT_SELECTED)
+                try self.parentModeSelParentUndefChild(result_writer, s1_type, s2_type)
+            else 
+                try self.parentModeSelChildUndefParent(result_writer, s1_type, s2_type);
+    // one of the statements defined
+    } else if (isModeSelDef(s1, s2)) {
+        return if (s1 == STATEMENT_SELECTED)
+                try self.parentModeSelParentDefChild(result_writer, s2, s2_type, s1_type)
+            else 
+                try self.parentModeSelChildDefParent(result_writer, s1, s1_type, s2_type);
+    // both statements defined
+    } else if (isModeDef(s1, s2)) {
+        return try self.parentModeDef(result_writer, s1_type, s1, s2_type, s2);
+    } else {
+        return error.UNSUPPORTED_COMBINATION;
+    }
+    return 0;
 }
 fn parentTransitiveInternal(self: *Self, children_nodes: []const Node, s2: u32) bool {
     // we can omit check if nodes len is 0 because 
