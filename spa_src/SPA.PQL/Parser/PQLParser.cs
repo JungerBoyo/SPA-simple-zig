@@ -62,6 +62,7 @@ namespace SPA.PQL.Parser {
 
                 return new PQLQueryResult()
                 {
+                    IsBooleanResult = false,
                     VariableNames = variablesReturned,
                 };
             }
@@ -69,8 +70,18 @@ namespace SPA.PQL.Parser {
             if (!PQLParserHelper.IsValidVariableName(selectExpression))
                 throw new InvalidSelectDeclarationException(expression);
 
+            if (selectExpression == "BOOLEAN")
+            {
+                return new PQLQueryResult()
+                {
+                    IsBooleanResult = true,
+                    VariableNames = Array.Empty<string>(),
+                };
+            }
+            
             return new PQLQueryResult()
             {
+                IsBooleanResult = false,
                 VariableNames = [selectExpression],
             };
         }
@@ -83,8 +94,8 @@ namespace SPA.PQL.Parser {
                 if (tokens.Length != 2)
                     throw new InvalidVariableDeclarationException(variableDeclaration);
 
-                var entityTypes = PQLParserHelper.GetEntityTypesByTypeName(tokens[0]);
-                if (entityTypes.Length == 0)
+                var entityType = PQLParserHelper.GetEntityTypesByTypeName(tokens[0]);
+                if (entityType is null)
                     throw new InvalidVariableDeclarationException(variableDeclaration);
 
                 var variableNames = tokens[1].Split(',', StringSplitOptions.TrimEntries);
@@ -96,7 +107,7 @@ namespace SPA.PQL.Parser {
 
                     yield return new PQLVariable()
                     {
-                        EntitiesTypes = entityTypes,
+                        EntityType = entityType.Value,
                         Name = variableName
                     };
                 }

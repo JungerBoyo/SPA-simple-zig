@@ -1,7 +1,52 @@
 ﻿@page "/"
+@using SPA.PQL.Evaluator
 
-<PageTitle>Home</PageTitle>
+<textarea @bind="_pqlQuery"></textarea>
+<textarea @bind="_simpleProgram"></textarea>
 
-<h1>Hello, world!</h1>
+<button @onclick="Evaluate">Evaluate</button>
 
-Welcome to your new app.
+<div class="row">
+    <div class="col-12">
+        @if (_validationResult is not null)
+        {
+            @foreach (var item in _validationResult.Errors)
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <span class="text-danger">@item</span>
+                    </div>
+                </div>
+            }
+
+            @foreach (var item in _validationResult.Warnings)
+            {
+                <div class="row">
+                    <div class="col-12">
+                        <span class="text-warning">@item</span>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        @if (_result is not null)
+        {
+            @if (_result is BooleanQueryResult booleanQueryResult)
+            {
+                @(booleanQueryResult.ToString())
+            }
+
+            if (_result is VariableQueryResult variableQueryResult)
+            {
+                @foreach (var item in variableQueryResult.Results)
+                {
+                    <span>@item </span>
+                }
+            }
+        }
+    </div>
+</div>

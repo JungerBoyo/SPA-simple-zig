@@ -5,7 +5,7 @@ namespace SPA.PQL {
         public static string[] SplitAt(this string str, string regex)
         {
             var match = Regex.Match(str, regex);
-            
+
             if (!match.Success)
                 return [str];
 
@@ -21,15 +21,34 @@ namespace SPA.PQL {
             foreach (var phrase in searchedPhrases)
             {
                 var match = Regex.Match(str, phrase);
-                
+
                 if (match.Success && match.Index < result)
                     result = match.Index;
             }
 
             if (result < str.Length)
                 return result;
-            
+
             return -1;
+        }
+
+        public static bool Contains<T>(this T[] array, T value)
+        {
+            foreach (var item in array)
+            {
+                if (item is null)
+                {
+                    if (value is null)
+                        return true;
+
+                    continue;
+                }
+
+                if (item.Equals(value))
+                    return true;
+            }
+
+            return false;
         }
     }
 }

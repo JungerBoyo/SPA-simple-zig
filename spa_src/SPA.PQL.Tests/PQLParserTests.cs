@@ -1,8 +1,9 @@
+using SPA.PQL.API;
+using SPA.PQL.Elements;
 using SPA.PQL.Enums;
 using SPA.PQL.Exceptions;
 using SPA.PQL.Parser;
 using SPA.PQL.QueryElements;
-using SPA.Simple.Elements;
 using Xunit;
 
 namespace SPA.PQL.Tests;
@@ -23,8 +24,7 @@ public class PQLParserTests {
         Assert.NotNull(result);
         Assert.Single(result);
         Assert.Equal("a", result[0].Name);
-        Assert.Single(result[0].EntitiesTypes);
-        Assert.Equal(ProgramElementType.Assign, result[0].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[0].EntityType);
     }
     
     [Fact]
@@ -41,11 +41,9 @@ public class PQLParserTests {
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
         Assert.Equal("a", result[0].Name);
-        Assert.Single(result[0].EntitiesTypes);
-        Assert.Equal(ProgramElementType.Assign, result[0].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[0].EntityType);
         Assert.Equal("b", result[1].Name);
-        Assert.Single(result[1].EntitiesTypes);
-        Assert.Equal(ProgramElementType.Assign, result[1].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[1].EntityType);
     }
     
     [Fact]
@@ -62,11 +60,9 @@ public class PQLParserTests {
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
         Assert.Equal("a", result[0].Name);
-        Assert.Single(result[0].EntitiesTypes);
-        Assert.Equal(ProgramElementType.Assign, result[0].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[0].EntityType);
         Assert.Equal("b", result[1].Name);
-        Assert.Single(result[1].EntitiesTypes);
-        Assert.Equal(ProgramElementType.Assign, result[1].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[1].EntityType);
     }
     
     [Fact]

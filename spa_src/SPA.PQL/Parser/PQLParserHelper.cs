@@ -1,64 +1,44 @@
 ﻿using System.Text.RegularExpressions;
+using SPA.PQL.API;
+using SPA.PQL.Elements;
 using SPA.PQL.Enums;
 using SPA.PQL.QueryElements;
-using SPA.Simple.Elements;
 
 namespace SPA.PQL.Parser {
     internal static class PQLParserHelper {
-        private static readonly ProgramElementType[] ProcedureEntityTypes = [ProgramElementType.Procedure];
-        private static readonly ProgramElementType[] StatementListEntityTypes = [ProgramElementType.StatementList];
-
-        private static readonly ProgramElementType[] StatementEntityTypes =
-        [
-            ProgramElementType.Assign, ProgramElementType.Call, ProgramElementType.Plus, ProgramElementType.Minus,
-            ProgramElementType.Times, ProgramElementType.Variable, ProgramElementType.Constant,
-            ProgramElementType.While, ProgramElementType.If
-        ];
-
-        private static readonly ProgramElementType[] AssignEntityTypes = [ProgramElementType.Assign];
-        private static readonly ProgramElementType[] PlusEntityTypes = [ProgramElementType.Plus];
-        private static readonly ProgramElementType[] MinusEntityTypes = [ProgramElementType.Minus];
-        private static readonly ProgramElementType[] TimesEntityTypes = [ProgramElementType.Times];
-        private static readonly ProgramElementType[] VariableEntityTypes = [ProgramElementType.Variable];
-        private static readonly ProgramElementType[] ConstantEntityTypes = [ProgramElementType.Constant];
-        private static readonly ProgramElementType[] WhileEntityTypes = [ProgramElementType.While];
-        private static readonly ProgramElementType[] IfEntityTypes = [ProgramElementType.If];
-        private static readonly ProgramElementType[] CallEntityTypes = [ProgramElementType.Call];
-        private static readonly ProgramElementType[] ProgramLineEntityTypes = [ProgramElementType.StatementList];
-
-        public static ProgramElementType[] GetEntityTypesByTypeName(string typeName)
+        public static SpaApi.StatementType? GetEntityTypesByTypeName(string typeName)
         {
             switch (typeName)
             {
                 case "procedure":
-                    return ProcedureEntityTypes;
+                    return SpaApi.StatementType.PROCEDURE;
                 case "stmtLst":
-                    return StatementListEntityTypes;
+                    return SpaApi.StatementType.STMT_LIST;
                 case "stmt":
-                    return StatementEntityTypes;
+                    return SpaApi.StatementType.NONE;
                 case "assign":
-                    return AssignEntityTypes;
+                    return SpaApi.StatementType.ASSIGN;
                 case "plus":
-                    return PlusEntityTypes;
+                    return SpaApi.StatementType.ADD;
                 case "minus":
-                    return MinusEntityTypes;
+                    return SpaApi.StatementType.SUB;
                 case "times":
-                    return TimesEntityTypes;
+                    return SpaApi.StatementType.MUL;
                 case "variable":
-                    return VariableEntityTypes;
+                    return SpaApi.StatementType.VAR;
                 case "constant":
-                    return ConstantEntityTypes;
+                    return SpaApi.StatementType.CONST;
                 case "while":
-                    return WhileEntityTypes;
+                    return SpaApi.StatementType.WHILE;
                 case "if":
-                    return IfEntityTypes;
+                    return SpaApi.StatementType.IF;
                 case "call":
-                    return CallEntityTypes;
+                    return SpaApi.StatementType.CALL;
                 case "prog_line":
-                    return ProgramLineEntityTypes;
+                    return SpaApi.StatementType.NONE;
             }
 
-            return Array.Empty<ProgramElementType>();
+            return null;
         }
 
         public static bool IsValidVariableName(string variableName)
@@ -67,9 +47,6 @@ namespace SPA.PQL.Parser {
                 return false;
 
             if (!Regex.IsMatch(variableName, "^[a-zA-Z][a-zA-Z0-9#]*$"))
-                return false;
-
-            if (GetEntityTypesByTypeName(variableName).Length > 0)
                 return false;
 
             return true;

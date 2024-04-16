@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
     const lib_spa_api_absolute_path = if (builtin.os.tag == .linux) 
             std.fs.cwd().realpathAlloc(b.allocator, "zig-out/lib/libsimple-spa.so") catch unreachable
         else
-            std.fs.cwd().realpathAlloc(b.allocator, "zig-out/lib/libsimple-spa.dll") catch unreachable;
+            std.fs.cwd().realpathAlloc(b.allocator, "zig-out/lib/simple-spa.dll") catch unreachable;
 
     var copy_spa_api_cs_decl = b.addSystemCommand(&[_][]const u8{
         "lua", "utility_scripts/replacer.lua", "<PLACEHOLDER>", lib_spa_api_absolute_path, "src/spa_api.cs", "spa_src/"
