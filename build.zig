@@ -35,19 +35,23 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(lib_spa_api);
 
-    const lib_spa_api_absolute_path = if (builtin.os.tag == .linux) 
-            std.fs.cwd().realpathAlloc(b.allocator, "zig-out/lib/libsimple-spa.so") catch unreachable
-        else
-            std.fs.cwd().realpathAlloc(b.allocator, "zig-out/lib/libsimple-spa.dll") catch unreachable;
+
+    const lib_spa_api_absolute_path = b.pathFromRoot(
+        if (builtin.os.tag == .linux) 
+                "zig-out/lib/libsimple-spa.so"
+            else
+                "zig-out/lib/simple-spa.dll"
+
+    );
 
     var copy_spa_api_cs_decl = b.addSystemCommand(&[_][]const u8{
         "lua", "utility_scripts/replacer.lua", "<PLACEHOLDER>", lib_spa_api_absolute_path, "src/spa_api.cs", "spa_src/"
     });
 
     const copy_spa_api_cs_decl_step = b.step("Copy SPA API C# file", "Copy spa_api.cs to C# src code dir with proper shared lib spi api path.");
-    
+
     copy_spa_api_cs_decl_step.dependOn(&copy_spa_api_cs_decl.step);
-    b.getInstallStep().dependOn(copy_spa_api_cs_decl_step);
+    copy_spa_api_cs_decl_step.dependOn(b.getInstallStep());
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

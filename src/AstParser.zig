@@ -488,12 +488,11 @@ pub fn parse(self: *Self) Error!*AST {
                 if (ast.nodes[i_nodes].children_count_or_rhs_child_index != 0) {
                     ast.nodes[i_nodes].children_index_or_lhs_child_index += @intCast(level_offset);
                 }
-                if (ast.nodes[i_nodes].value) |*value| {
-                    value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
-                        return Error.PARSER_OUT_OF_MEMORY;
-                }
             }
-
+            if (ast.nodes[i_nodes].value) |*value| {
+                value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
+                    return Error.PARSER_OUT_OF_MEMORY;
+            }
             if(node.metadata.statement_id != 0) {
                 ast.statement_map[node.metadata.statement_id] = i_nodes;
             }
