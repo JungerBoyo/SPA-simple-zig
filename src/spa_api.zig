@@ -27,6 +27,8 @@ var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
 var result_buffer_size: u32 = 0;
 
+var error_code: c_uint = 0;
+
 var instance: ?SpaInstance = null;
 
 fn makeInstance(simple_src_file_path: [*:0]const u8) Error!SpaInstance {
@@ -60,6 +62,9 @@ pub const NodeC = extern struct {
     column_no: c_int = 0,
 };
 
+
+// Returns metadata of node which has an id <id>. In case of failure,
+// returns zeroed out node metadata and sets error code.
 pub export fn GetNodeMetadata(id: c_uint) callconv(.C) NodeC {
     if (instance) |value| {
         if (id < value.ast.nodes.len) {
@@ -70,11 +75,19 @@ pub export fn GetNodeMetadata(id: c_uint) callconv(.C) NodeC {
                 .line_no = @intCast(node.metadata.line_no),
                 .column_no = @intCast(node.metadata.column_no)
             };
+        } else {
+            error_code = @intFromEnum(ErrorEnum.NODE_ID_OUT_OF_BOUNDS);
         }
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
     }
     return .{};
 }
 
+// Returns node's value. Eg. in case of assign statement value
+// will be the name of the variable, and in case of procedure value
+// is going to be procedure name and so on. In case of failure,
+// return empty string and sets error code.
 pub export fn GetNodeValue(id: c_uint) callconv(.C) [*:0]const u8 {
     if (instance) |value| {
         if (id < value.ast.nodes.len) {
@@ -82,78 +95,173 @@ pub export fn GetNodeValue(id: c_uint) callconv(.C) [*:0]const u8 {
             if (node.value) |str| {
                 _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
                 _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+                return @ptrCast(result_buffer[0..].ptr);
             }
+        } else {
+            error_code = @intFromEnum(ErrorEnum.NODE_ID_OUT_OF_BOUNDS);
         }
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
     }
     result_buffer[0] = 0;
     return @ptrCast(result_buffer[0..].ptr);
 }
 
+
+// Takes path to SPA lang source file and creates PKB instance
+// based on it. MUST be called before any functions from the API are called.
+// Returns error code or OK.
 pub export fn Init(simple_src_file_path: [*:0]const u8) callconv(.C) c_uint {
     instance = makeInstance(simple_src_file_path) catch |e| {
-        return @intFromEnum(errorToEnum(e));
+        error_code = @intCast(@intFromEnum(errorToEnum(e)));
+        return error_code;
     };
 
     return @intFromEnum(ErrorEnum.OK);
 }
 
+// Deinitializes context. Frees up memory basically.
+// Returns OK or an error code.
 pub export fn Deinit() callconv(.C) c_uint { 
     if (instance) |value| {
         value.ast.deinit();
         return @intFromEnum(ErrorEnum.OK);
     }
+    error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
     return @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
 }
 
+// Gets current error message from error buffer. MUST correspond
+// logically to error code. If it is not, then it means error message
+// is "old".
 pub export fn GetErrorMessage() callconv(.C) [*:0]const u8 {
     return &error_buffer;
 }
-// TODO
-// pub export fn GetErrorCode() callconv(.C)  {
 
-// }
+// Gets current error code and OKays out current error code after
+// returning.
+pub export fn GetErrorCode() callconv(.C) c_uint {
+    // clear error code upon reading it
+    defer error_code = @intFromEnum(ErrorEnum.OK);
+    return error_code;
+}
 
+// Gets current result size (eg. from last call to any of the
+// relation funcitons). Upon return sets result buffer size
+// to 0.
 pub export fn GetResultSize() callconv(.C) c_uint {
+    defer result_buffer_size = 0;
     return result_buffer_size;
 }
 
-pub export fn Follows(s1_type: c_uint, s1: c_uint, s2_type: c_uint, s2: c_uint) callconv(.C) [*c]c_uint {
-    result_buffer_size = 0;
+// Follows relation. As parameters, takes statement type, id 
+// (statement id not node id!!!) and value which is explained in 
+// GetNodeValue. Important notes: 
+//
+// <s1>/<s2> can take 3 different TYPES of values;
+//      - 0 -> means that that statement is SELECTED
+//      - UINT32_MAX -> means that that statement is UNDEFINED (
+//                      there are yet none constraints put onto it)
+//      - (0, UINT32_MAX) -> concrete statement id
+//
+// examples:
+//      * assign a; stmt s; select s such that follows(s, a) with a.varname = "x";
+//          translates to:
+//              Follows(NONE, 0, null, ASSIGN, UINT32_MAX, "x");
+//              returns: all node ids of s's which fullfil the relation
+//
+//      * assign a; select a such that follows(5, a) with a.varname = "x";
+//          translates to:
+//              Follows(NONE, 5, null, ASSIGN, 0, "x");
+//
+//  etc.
+// In case of failure, returns NULL and sets error code.
+pub export fn Follows(
+    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
+    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
+) callconv(.C) [*c]c_uint {
     if (instance) |value| {
         result_buffer_size = value.ast.follows(
             result_buffer_stream.writer(),
             @enumFromInt(@as(u32, s1_type)),
-            @intCast(s1), 
+            @intCast(s1),
+            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
             @enumFromInt(@as(u32, s2_type)),
-            @intCast(s2)
-        ) catch {
+            @intCast(s2),
+            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            }
             return 0x0;
-            // if (e == AST.Error.UNSUPPORTED_COMBINATION) { return 0x0; }
-            // else { return 0x0; }
         };
         result_buffer_stream.reset();
         return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
     }
-
     return 0x0;
 }
 
-pub export fn FollowsTransitive(s1_type: c_uint, s1: c_uint, s2_type: c_uint, s2: c_uint) callconv(.C) [*c]c_uint {
-    result_buffer_size = 0;
+// Follows transitive aka Follows* relation. As parameters, takes statement type, id 
+// (statement id not node id!!!) and value which is explained in 
+// GetNodeValue. Check 'Follows' comments for details.
+// In case of failure, returns NULL and sets error code.
+pub export fn FollowsTransitive(
+    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
+    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
+) callconv(.C) [*c]c_uint {
     if (instance) |value| {
         result_buffer_size = value.ast.followsTransitive(
             result_buffer_stream.writer(),
             @enumFromInt(@as(u32, s1_type)),
-            @intCast(s1), 
+            @intCast(s1),
+            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
             @enumFromInt(@as(u32, s2_type)),
-            @intCast(s2)
-        ) catch {
+            @intCast(s2),
+            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            }
             return 0x0;
         };
         result_buffer_stream.reset();
         return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
     }
+    return 0x0;
+}
 
+// Parent relation. As parameters, takes statement type, id 
+// (statement id not node id!!!) and value which is explained in 
+// GetNodeValue. Check 'Follows' comments for details.
+// In case of failure, returns NULL and sets error code.
+pub export fn Parent(
+    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
+    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
+) callconv(.C) [*c]c_uint {
+    if (instance) |value| {
+        result_buffer_size = value.ast.parent(
+            result_buffer_stream.writer(),
+            @enumFromInt(@as(u32, s1_type)),
+            @intCast(s1),
+            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
+            @enumFromInt(@as(u32, s2_type)),
+            @intCast(s2),
+            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            }
+            return 0x0;
+        };
+        result_buffer_stream.reset();
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
+    }
     return 0x0;
 }
 
@@ -164,22 +272,26 @@ pub export fn FollowsTransitive(s1_type: c_uint, s1: c_uint, s2_type: c_uint, s2
     // return 0;
 // }
 
-pub export fn ParentTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
-    if (instance) |value| {
-        return @intCast(@intFromBool(value.ast.parentTransitive(@intCast(s1), @intCast(s2))));
-    }
-    return 0;
-}
+//pub export fn ParentTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
+//    if (instance) |value| {
+//        return @intCast(@intFromBool(value.ast.parentTransitive(@intCast(s1), @intCast(s2))));
+//    }
+//    return 0;
+//}
 
 pub const Error = error{ 
     SIMPLE_FILE_OPEN_ERROR, 
-    TRIED_TO_DEINIT_EMPTY_INSTANCE
+    TRIED_TO_DEINIT_EMPTY_INSTANCE,
+    NODE_ID_OUT_OF_BOUNDS,
+    TRIED_TO_USE_EMPTY_INSTANCE
 } || Tokenizer.Error || ASTParser.Error || AST.Error;
 
 pub const ErrorEnum = enum(u32) {
     OK = 0,
     SIMPLE_FILE_OPEN_ERROR,
     TRIED_TO_DEINIT_EMPTY_INSTANCE,
+    NODE_ID_OUT_OF_BOUNDS,
+    TRIED_TO_USE_EMPTY_INSTANCE,
     TOKENIZER_OUT_OF_MEMORY,
     SIMPLE_STREAM_READING_ERROR,
     UNEXPECTED_CHAR,
