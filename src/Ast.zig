@@ -47,7 +47,7 @@ fn checkValue(node: Node, value: ?[]const u8) bool {
 }
 
 fn checkNodeType(node_type: NodeType, expected_node_type: NodeType) bool {
-    return (node_type == expected_node_type or node_type == .NONE);
+    return (node_type == expected_node_type or expected_node_type == .NONE);
 }
 
 /// follows check doesn't care about
@@ -270,7 +270,7 @@ pub fn followsTransitive(self: *Self,
         return if (s1 == STATEMENT_SELECTED)
                 try self.followsTransitiveModeSelUndef(result_writer, s1_type, s1_value, s2_type, s2_value, 1, 1)
             else
-                try self.followsTransitiveModeSelUndef(result_writer, s2_type, s2_value, s1_type, s2_value, 2, -1);
+                try self.followsTransitiveModeSelUndef(result_writer, s2_type, s2_value, s1_type, s1_value, 2, -1);
     // one of the statements defined
     } else if (isModeSelDef(s1, s2)) {
         return if (s1 == STATEMENT_SELECTED)
@@ -382,7 +382,7 @@ fn parentModeSelParentDefChild(self: *Self,
 ) !u32 {
     const s_child_index = self.findStatement(s_child);
     const s_child_node = self.nodes[s_child_index];
-    if (s_child_index == 0 or s_child_node.type != s_child_type or checkValue(s_child_node, s_child_value)) {
+    if (s_child_index == 0 or s_child_node.type != s_child_type or !checkValue(s_child_node, s_child_value)) {
         return 0;
     }
     const stmt_list_index = s_child_node.parent_index;
@@ -402,7 +402,7 @@ fn parentModeSelChildDefParent(self: *Self,
 ) !u32 {
     const s_parent_index = self.findStatement(s_parent);
     const s_parent_node = self.nodes[s_parent_index];
-    if (s_parent_index == 0 or s_parent_node.type != s_parent_type or checkValue(s_parent_node, s_parent_value)) {
+    if (s_parent_index == 0 or s_parent_node.type != s_parent_type or !checkValue(s_parent_node, s_parent_value)) {
         return 0;
     }
     const children_index = self.nodes[s_parent_node.children_index_or_lhs_child_index + 1].children_index_or_lhs_child_index;
@@ -427,7 +427,7 @@ fn parentModeDef(self: *Self,
 ) !u32 {
     const s1_index = self.findStatement(s1);
     const s1_node = self.nodes[s1_index];
-    if (s1_index == 0 or s1_node.type != s1_type or checkValue(s1_node, s1_value)) {
+    if (s1_index == 0 or s1_node.type != s1_type or !checkValue(s1_node, s1_value)) {
         return 0;
     }
     if (s1_node.type == .WHILE) {

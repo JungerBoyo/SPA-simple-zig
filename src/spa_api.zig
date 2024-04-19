@@ -192,7 +192,10 @@ pub export fn Follows(
         ) catch |e| {
             if (e == error.UNSUPPORTED_COMBINATION) {
                 error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
             }
+
             return 0x0;
         };
         result_buffer_stream.reset();
@@ -223,7 +226,10 @@ pub export fn FollowsTransitive(
         ) catch |e| {
             if (e == error.UNSUPPORTED_COMBINATION) {
                 error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
             }
+
             return 0x0;
         };
         result_buffer_stream.reset();
@@ -254,7 +260,10 @@ pub export fn Parent(
         ) catch |e| {
             if (e == error.UNSUPPORTED_COMBINATION) {
                 error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
             }
+
             return 0x0;
         };
         result_buffer_stream.reset();
@@ -265,25 +274,12 @@ pub export fn Parent(
     return 0x0;
 }
 
-// pub export fn Parent(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
-    // if (instance) |value| {
-    //     return @intCast(@intFromBool(value.ast.parent(@intCast(s1), @intCast(s2))));
-    // }
-    // return 0;
-// }
-
-//pub export fn ParentTransitive(s1: c_uint, s2: c_uint) callconv(.C) c_uint {
-//    if (instance) |value| {
-//        return @intCast(@intFromBool(value.ast.parentTransitive(@intCast(s1), @intCast(s2))));
-//    }
-//    return 0;
-//}
-
 pub const Error = error{ 
     SIMPLE_FILE_OPEN_ERROR, 
     TRIED_TO_DEINIT_EMPTY_INSTANCE,
     NODE_ID_OUT_OF_BOUNDS,
-    TRIED_TO_USE_EMPTY_INSTANCE
+    TRIED_TO_USE_EMPTY_INSTANCE,
+    UNDEFINED
 } || Tokenizer.Error || ASTParser.Error || AST.Error;
 
 pub const ErrorEnum = enum(u32) {
@@ -312,7 +308,8 @@ pub const ErrorEnum = enum(u32) {
     KEYWORD_NOT_FOUND,
     PROCEDURE_NAME_NOT_FOUND,
     UNSUPPORTED_COMBINATION,
-    WRITER_ERROR
+    WRITER_ERROR,
+    UNDEFINED
 };
 
 pub fn errorToEnum(err: Error) ErrorEnum {
