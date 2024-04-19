@@ -276,46 +276,35 @@ test "parent" {
 }
 
 
-//test "parent*" {
-//    const simple = 
-//    \\procedure Second {
-//    \\  x = 0;
-//    \\  i = 5;
-//    \\  if x then {
-//    \\      x = x + 1;
-//    \\      while i {
-//    \\          x = x + 2 * y;
-//    \\          call Third;
-//    \\          i = i - 1;
-//    \\          if c then { i = 1; } else { i = 2; }
-//    \\      }
-//    \\  } else {
-//    \\      z = 1;
-//    \\  }
-//    \\  z = z + x + i;
-//    \\  y = z + 2;
-//    \\  x = x * y + z;
-//    \\}
-//    ;
-//
-//    var ast = try getAST(simple[0..]);
-//    defer ast.deinit();
-//
-//    try std.testing.expect(!ast.parentTransitive(1, 2));
-//    try std.testing.expect(!ast.parentTransitive(2, 3));
-//    try std.testing.expect(ast.parentTransitive(3, 4));
-//    try std.testing.expect(ast.parentTransitive(3, 5));
-//    try std.testing.expect(ast.parentTransitive(3, 12));
-//    
-//    try std.testing.expect(ast.parentTransitive(3, 6));
-//    try std.testing.expect(ast.parentTransitive(3, 7));
-//    try std.testing.expect(ast.parentTransitive(3, 8));
-//    try std.testing.expect(ast.parentTransitive(3, 9));
-//    try std.testing.expect(ast.parentTransitive(3, 10));
-//    try std.testing.expect(ast.parentTransitive(3, 11));
-//    
-//    try std.testing.expect(ast.parentTransitive(5, 10));
-//    try std.testing.expect(ast.parentTransitive(5, 11));
-//    
-//    try std.testing.expect(!ast.parentTransitive(5, 12));
-//}
+test "parent*" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  if x then {
+    \\      x = x + 1;
+    \\      while i {
+    \\          x = x + 2 * y;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { i = 1; } else { i = 2; }
+    \\      }
+    \\  } else {
+    \\      z = 1;
+    \\  }
+    \\  z = z + x + i;
+    \\  y = z + 2;
+    \\  x = x * y + z;
+    \\}
+    ;
+
+    var ast = try getAST(simple[0..]);
+    defer ast.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+    
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, 6, null, 1);
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
+    //try checkExecute(ast, AST.parent, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
+}
