@@ -153,4 +153,11 @@ public class SpaApi {
     // In case of failure, returns NULL and sets error code.
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
     public static extern UIntPtr Parent(uint s1_type, uint s1, string s1_value, uint s2_type, uint s2, string s2_value);
+
+    // Parent* relation. As parameters, takes statement type, id 
+    // (statement id not node id!!!) and value which is explained in 
+    // GetNodeValue. Check 'Follows' comments for details.
+    // In case of failure, returns NULL and sets error code.
+    [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
+    public static extern UIntPtr ParentTransitive(uint s1_type, uint s1, string s1_value, uint s2_type, uint s2, string s2_value);
 }

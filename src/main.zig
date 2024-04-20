@@ -63,25 +63,26 @@ fn checkResult(ast: *AST, buffer: *const [4]u8, expected: u32, convert: bool) !v
 }
 //
 pub fn main() !void {
-   const simple = 
-   \\procedure Second {
-   \\  x = 0;
-   \\  i = 5;
-   \\  while i {
-   \\      x = x + 2 * y;
-   \\      call Third;
-   \\      i = i - 1;
-   \\  }
-   \\  if x then {
-   \\      x = x + 1;
-   \\  } else {
-   \\      z = 1;
-   \\  }
-   \\  z = z + x + i;
-   \\  y = z + 2;
-   \\  x = x * y + z;
-   \\}
-   ;
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  if x then {
+    \\      x = x + 1;
+    \\      while i {
+    \\          x = x + 2 * y;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { i = 1; } else { i = 2; }
+    \\      }
+    \\  } else {
+    \\      z = 1;
+    \\  }
+    \\  z = z + x + i;
+    \\  y = z + 2;
+    \\  x = x * y + z;
+    \\}
+    ;
 
    var ast = try getAST(simple[0..]);
    defer ast.deinit();
@@ -89,5 +90,7 @@ pub fn main() !void {
    var result_buffer: [1024]u8 = .{0} ** 1024;
    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
-    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 7, null, .ASSIGN, AST.STATEMENT_SELECTED, null, 2);
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, AST.STATEMENT_SELECTED, null, .WHILE, AST.STATEMENT_UNDEFINED, null, 1);
+    try checkResult(ast, result_buffer[0..4], 3, true);
+
 }

@@ -154,6 +154,40 @@ pub export fn GetResultSize() callconv(.C) c_uint {
     return result_buffer_size;
 }
 
+fn execRelation(
+    func: *const fn(*AST,
+        std.io.FixedBufferStream([]u8).Writer,
+        NodeType, u32, ?[]const u8,
+        NodeType, u32, ?[]const u8
+    ) anyerror!u32,
+    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
+    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
+) [*c]c_uint {
+    if (instance) |value| {
+        result_buffer_size = func(value.ast,
+            result_buffer_stream.writer(),
+            @enumFromInt(@as(u32, s1_type)),
+            @intCast(s1),
+            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
+            @enumFromInt(@as(u32, s2_type)),
+            @intCast(s2),
+            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
+            }
+
+            return 0x0;
+        };
+        result_buffer_stream.reset();
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
+    }
+    return 0x0;
+}
 // Follows relation. As parameters, takes statement type, id 
 // (statement id not node id!!!) and value which is explained in 
 // GetNodeValue. Important notes: 
@@ -180,30 +214,10 @@ pub export fn Follows(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    if (instance) |value| {
-        result_buffer_size = value.ast.follows(
-            result_buffer_stream.writer(),
-            @enumFromInt(@as(u32, s1_type)),
-            @intCast(s1),
-            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
-            @enumFromInt(@as(u32, s2_type)),
-            @intCast(s2),
-            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
-        ) catch |e| {
-            if (e == error.UNSUPPORTED_COMBINATION) {
-                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
-            } else {
-                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
-            }
-
-            return 0x0;
-        };
-        result_buffer_stream.reset();
-        return @alignCast(@ptrCast(result_buffer[0..].ptr));
-    } else {
-        error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
-    }
-    return 0x0;
+    return execRelation(AST.follows,
+        s1_type, s1, s1_value,
+        s2_type, s2, s2_value,
+    );
 }
 
 // Follows transitive aka Follows* relation. As parameters, takes statement type, id 
@@ -214,30 +228,10 @@ pub export fn FollowsTransitive(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    if (instance) |value| {
-        result_buffer_size = value.ast.followsTransitive(
-            result_buffer_stream.writer(),
-            @enumFromInt(@as(u32, s1_type)),
-            @intCast(s1),
-            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
-            @enumFromInt(@as(u32, s2_type)),
-            @intCast(s2),
-            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
-        ) catch |e| {
-            if (e == error.UNSUPPORTED_COMBINATION) {
-                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
-            } else {
-                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
-            }
-
-            return 0x0;
-        };
-        result_buffer_stream.reset();
-        return @alignCast(@ptrCast(result_buffer[0..].ptr));
-    } else {
-        error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
-    }
-    return 0x0;
+    return execRelation(AST.followsTransitive,
+        s1_type, s1, s1_value,
+        s2_type, s2, s2_value,
+    );
 }
 
 // Parent relation. As parameters, takes statement type, id 
@@ -248,32 +242,25 @@ pub export fn Parent(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    if (instance) |value| {
-        result_buffer_size = value.ast.parent(
-            result_buffer_stream.writer(),
-            @enumFromInt(@as(u32, s1_type)),
-            @intCast(s1),
-            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
-            @enumFromInt(@as(u32, s2_type)),
-            @intCast(s2),
-            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
-        ) catch |e| {
-            if (e == error.UNSUPPORTED_COMBINATION) {
-                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
-            } else {
-                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
-            }
-
-            return 0x0;
-        };
-        result_buffer_stream.reset();
-        return @alignCast(@ptrCast(result_buffer[0..].ptr));
-    } else {
-        error_code = @intFromEnum(ErrorEnum.TRIED_TO_DEINIT_EMPTY_INSTANCE);
-    }
-    return 0x0;
+    return execRelation(AST.parent,
+        s1_type, s1, s1_value,
+        s2_type, s2, s2_value,
+    );
 }
 
+// Parent* relation. As parameters, takes statement type, id 
+// (statement id not node id!!!) and value which is explained in 
+// GetNodeValue. Check 'Follows' comments for details.
+// In case of failure, returns NULL and sets error code.
+pub export fn ParentTransitive(
+    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
+    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
+) callconv(.C) [*c]c_uint {
+    return execRelation(AST.parentTransitive,
+        s1_type, s1, s1_value,
+        s2_type, s2, s2_value,
+    );
+}
 pub const Error = error{ 
     SIMPLE_FILE_OPEN_ERROR, 
     TRIED_TO_DEINIT_EMPTY_INSTANCE,

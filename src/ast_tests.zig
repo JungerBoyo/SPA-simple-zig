@@ -287,7 +287,11 @@ test "parent*" {
     \\          x = x + 2 * y;
     \\          call Third;
     \\          i = i - 1;
-    \\          if c then { i = 1; } else { i = 2; }
+    \\          if c then { 
+    \\              i = 1; 
+    \\          } else {
+    \\              y = 2;
+    \\          }
     \\      }
     \\  } else {
     \\      z = 1;
@@ -306,5 +310,50 @@ test "parent*" {
     
     try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, 6, null, 1);
     try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
-    //try checkExecute(ast, AST.parent, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, AST.STATEMENT_SELECTED, null, .NONE, 6, null, 1);
+    try checkResult(ast, result_buffer[0..4], 3, true);
+    
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, AST.STATEMENT_SELECTED, null, .NONE, 10, null, 2);
+    try checkResult(ast, result_buffer[0..4], 9, true);
+    try checkResult(ast, result_buffer[4..8], 3, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .WHILE, AST.STATEMENT_SELECTED, null, .NONE, 6, null, 1);
+    try checkResult(ast, result_buffer[0..4], 5, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, AST.STATEMENT_SELECTED, null, 9);
+    try checkResult(ast, result_buffer[0..4], 4, true);
+    try checkResult(ast, result_buffer[4..8], 5, true);
+    try checkResult(ast, result_buffer[8..12], 6, true);
+    try checkResult(ast, result_buffer[12..16], 7, true);
+    try checkResult(ast, result_buffer[16..20], 8, true);
+    try checkResult(ast, result_buffer[20..24], 9, true);
+    try checkResult(ast, result_buffer[24..28], 10, true);
+    try checkResult(ast, result_buffer[28..32], 11, true);
+    try checkResult(ast, result_buffer[32..36], 12, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, AST.STATEMENT_SELECTED, "i", 2);
+    try checkResult(ast, result_buffer[0..4], 8, true);
+    try checkResult(ast, result_buffer[4..8], 10, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, AST.STATEMENT_SELECTED, null, .ASSIGN, AST.STATEMENT_UNDEFINED, "y", 2);
+    try checkResult(ast, result_buffer[0..4], 9, true);
+    try checkResult(ast, result_buffer[4..8], 3, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .WHILE, AST.STATEMENT_SELECTED, null, .CALL, AST.STATEMENT_UNDEFINED, null, 1);
+    try checkResult(ast, result_buffer[0..4], 5, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .IF, AST.STATEMENT_SELECTED, null, .WHILE, AST.STATEMENT_UNDEFINED, null, 1);
+    try checkResult(ast, result_buffer[0..4], 3, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .WHILE, AST.STATEMENT_SELECTED, null, .WHILE, AST.STATEMENT_UNDEFINED, null, 0);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .WHILE, AST.STATEMENT_UNDEFINED, null, .WHILE, AST.STATEMENT_SELECTED, null, 0);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .WHILE, AST.STATEMENT_UNDEFINED, null, .IF, AST.STATEMENT_SELECTED, null, 1);
+    try checkResult(ast, result_buffer[0..4], 9, true);
+
+    try checkExecute(ast, AST.parentTransitive, &result_buffer_stream, .WHILE, AST.STATEMENT_UNDEFINED, null, .ASSIGN, AST.STATEMENT_SELECTED, "i", 2);
+    try checkResult(ast, result_buffer[0..4], 8, true);
+    try checkResult(ast, result_buffer[4..8], 10, true);
 }
