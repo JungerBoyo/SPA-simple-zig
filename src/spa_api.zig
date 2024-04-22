@@ -92,10 +92,19 @@ pub export fn GetNodeValue(id: c_uint) callconv(.C) [*:0]const u8 {
     if (instance) |value| {
         if (id < value.ast.nodes.len) {
             const node = value.ast.nodes[@intCast(id)];
-            if (node.value) |str| {
-                _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
-                _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
-                return @ptrCast(result_buffer[0..].ptr);
+            if (node.type == .ASSIGN or node.type == .VAR) {
+                if (value.ast.var_table.getByIndex(node.value_id_or_const)) |str| {
+                    _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
+                    _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+                    return @ptrCast(result_buffer[0..].ptr);
+                }
+            }
+            if (node.type == .PROCEDURE or node.type == .CALL) {
+                if (value.ast.proc_table.getByIndex(node.value_id_or_const)) |str| {
+                    _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
+                    _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+                    return @ptrCast(result_buffer[0..].ptr);
+                }
             }
         } else {
             error_code = @intFromEnum(ErrorEnum.NODE_ID_OUT_OF_BOUNDS);
@@ -278,7 +287,9 @@ pub const ErrorEnum = enum(u32) {
     TOKENIZER_OUT_OF_MEMORY,
     SIMPLE_STREAM_READING_ERROR,
     UNEXPECTED_CHAR,
+    PROC_VAR_TABLE_OUT_OF_MEMORY,
     PARSER_OUT_OF_MEMORY,
+    INT_OVERFLOW,
     NO_MATCHING_RIGHT_PARENTHESIS,
     WRONG_FACTOR,
     SEMICOLON_NOT_FOUND_AFTER_ASSIGN,

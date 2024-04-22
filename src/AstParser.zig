@@ -6,6 +6,7 @@ const Node              = @import("node.zig").Node;
 const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
+const ProcVarTable = @import("ProcVarTable.zig");
 
 pub fn AstParser(comptime ErrWriter: type, comptime AstResultIntType: type) type { return struct {
 
@@ -14,7 +15,8 @@ pub const AST = @import("Ast.zig").Ast(AstResultIntType);
 const Self = @This();
 
 pub const Error = 
-    error { PARSER_OUT_OF_MEMORY } ||
+    ProcVarTable.Error || 
+    error { PARSER_OUT_OF_MEMORY, INT_OVERFLOW } ||
     ExpressionParseError ||
     AssignmentParseError || 
     CallParseError ||
@@ -37,6 +39,9 @@ current_token: u32 = 0,
 current_statement: u32 = 1,
 current_level: i32 = -1,
 current_parent_index: u32 = 0,
+
+var_table: *ProcVarTable,
+proc_table: *ProcVarTable,
 
 fn setDefaults(self: *Self) void {
     self.root = .{ .type = .PROGRAM };
@@ -61,6 +66,10 @@ pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token, err_log_writ
     self.err_log_writer = err_log_writer;
 
     self.setDefaults();
+
+    self.var_table = try ProcVarTable.init(internal_allocator);
+    self.proc_table = try ProcVarTable.init(internal_allocator);
+
     return self;
 }
 
@@ -90,15 +99,18 @@ fn parseFactor(self: *Self) Error!u32 {
     .NAME => blk: {
         self.expression_level.append(.{
             .type = .VAR,
-            .value = token.value,
+            .value_id_or_const = try self.var_table.tryInsert(token.value.?),
             .metadata = self.getNodeMetadata(&token, 0)
         }) catch return Error.PARSER_OUT_OF_MEMORY;
         break :blk @intCast(self.expression_level.items.len - 1);
     },
     .INTEGER => blk: {
+        const value = std.fmt.parseUnsigned(u32, token.value.?, 10) catch {
+            return error.INT_OVERFLOW;
+        };
         self.expression_level.append(.{
             .type = .CONST,
-            .value = token.value,
+            .value_id_or_const = value,
             .metadata = self.getNodeMetadata(&token, 0)
         }) catch return Error.PARSER_OUT_OF_MEMORY;
         break :blk @intCast(self.expression_level.items.len - 1);
@@ -180,7 +192,7 @@ fn parseAssignment(self: *Self) Error!void {
         .children_count_or_rhs_child_index = 1,
         .parent_index = self.whereIsMyDad(),
         .metadata = self.getCurrentNodeMetadata(1),
-        .value = self.getCurrentToken().value
+        .value_id_or_const = try self.var_table.tryInsert(self.getCurrentToken().value.?)
     }) catch return Error.PARSER_OUT_OF_MEMORY;
     self.current_token += 1;
     // compare later, no harm in adding a node before compare if everything is correct
@@ -207,7 +219,7 @@ fn parseCall(self: *Self) Error!void {
             self.currentLevel().append(.{
                 .type = NodeType.CALL, 
                 .parent_index = self.whereIsMyDad(),
-                .value = name_token.value,
+                .value_id_or_const = try self.proc_table.tryInsert(name_token.value.?),
                 .metadata = self.getNodeMetadata(&name_token, 1)
             }) catch return Error.PARSER_OUT_OF_MEMORY;
         } else {
@@ -258,11 +270,11 @@ fn parseVar(self: *Self) Error!void {
         self.currentLevel().append(.{
             .type = .VAR, 
             .parent_index = self.whereIsMyDad(),
-            .value = name_token.value.?,
+            .value_id_or_const = try self.var_table.tryInsert(name_token.value.?),
             .metadata = self.getNodeMetadata(&name_token, 0),
         }) catch return Error.PARSER_OUT_OF_MEMORY;
     } else {
-        self.onError("Expected variable.");
+        self.onError("Expected variable name.");
         return VarParseError.VAR_NAME_NOT_FOUND;
     }
 }
@@ -344,7 +356,7 @@ fn parseProcedure(self: *Self) Error!void {
             self.currentLevel().append(.{
                 .type = .PROCEDURE, 
                 .children_index_or_lhs_child_index = self.whereAreMyKids(),
-                .value = name_token.value,
+                .value_id_or_const = try self.proc_table.tryInsert(name_token.value.?),
                 .metadata = self.getNodeMetadata(&name_token, 0)
             }) catch return Error.PARSER_OUT_OF_MEMORY;
             try self.wrapInLevel(parseStatementList);
@@ -442,7 +454,8 @@ pub fn parse(self: *Self) Error!*AST {
         flattened_tree_size += level.items.len;
     }
 
-    var ast = AST.init(self.arena_allocator.child_allocator, flattened_tree_size, self.current_statement) catch
+    var ast = AST.init(
+        self.arena_allocator.child_allocator, flattened_tree_size, self.current_statement, self.var_table, self.proc_table) catch
         return Error.PARSER_OUT_OF_MEMORY;
 
     ast.nodes[0] = self.root;
@@ -471,15 +484,15 @@ pub fn parse(self: *Self) Error!*AST {
                     dst_expr_node.* = src_expr_node;
 
                     dst_expr_node.parent_index += @intCast(expression_region_offset);
+
                     if (dst_expr_node.type != .VAR and dst_expr_node.type != .CONST) {
                         dst_expr_node.children_index_or_lhs_child_index += @intCast(expression_region_offset);
                         dst_expr_node.children_count_or_rhs_child_index += @intCast(expression_region_offset);
                     }
-
-                    if (dst_expr_node.value) |*value| {
-                        value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
-                            return Error.PARSER_OUT_OF_MEMORY;
-                    }
+                    //if (dst_expr_node.value) |*value| {
+                    //    value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
+                    //        return Error.PARSER_OUT_OF_MEMORY;
+                    //}
                 }
                 ast.nodes[ast.nodes[i_nodes].children_index_or_lhs_child_index].parent_index = @intCast(i_nodes);
                 i_expressions += node.children_count_or_rhs_child_index;
@@ -489,10 +502,10 @@ pub fn parse(self: *Self) Error!*AST {
                     ast.nodes[i_nodes].children_index_or_lhs_child_index += @intCast(level_offset);
                 }
             }
-            if (ast.nodes[i_nodes].value) |*value| {
-                value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
-                    return Error.PARSER_OUT_OF_MEMORY;
-            }
+            //if (ast.nodes[i_nodes].value) |*value| {
+            //    value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
+            //        return Error.PARSER_OUT_OF_MEMORY;
+            //}
             if(node.metadata.statement_id != 0) {
                 ast.statement_map[node.metadata.statement_id] = i_nodes;
             }

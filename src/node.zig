@@ -29,6 +29,8 @@ pub const NodeMetadata = struct {
     // line: []u8,
 };
 
+pub const NodeId = u32;
+
 pub const Node = struct {
     type: NodeType,
     // index into children 
@@ -38,7 +40,7 @@ pub const Node = struct {
     // parent index
     parent_index: u32 = 0, 
     // attributes (mostly procedure names, var names, constant values)
-    value: ?[]u8 = null,
+    value_id_or_const: u32 = 0,
     // node metadata - similar to token metadata
     metadata: NodeMetadata = .{},
 };
