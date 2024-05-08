@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 
 public class SpaApi {
-    enum StatementType : uint
+    public enum StatementType : uint
     {
         NONE, // null type
         // root node (aggregates procedures)
@@ -26,13 +26,13 @@ public class SpaApi {
         CONST           // factor : var_name | const_value | ‘(’ expr ‘)’
     };
 
-    enum StatementValueType : uint
+    public enum StatementValueType : uint
     {
         SELECTED    = 0,
         UNDEFINED   = 0xFF_FF_FF_FF
     }
 
-    enum Error : uint {
+    public enum Error : uint {
         OK = 0,
         SIMPLE_FILE_OPEN_ERROR,
         TRIED_TO_DEINIT_EMPTY_INSTANCE,
@@ -41,7 +41,9 @@ public class SpaApi {
         TOKENIZER_OUT_OF_MEMORY,
         SIMPLE_STREAM_READING_ERROR,
         UNEXPECTED_CHAR,
+        PROC_VAR_TABLE_OUT_OF_MEMORY,
         PARSER_OUT_OF_MEMORY,
+        INT_OVERFLOW,
         NO_MATCHING_RIGHT_PARENTHESIS,
         WRONG_FACTOR,
         SEMICOLON_NOT_FOUND_AFTER_ASSIGN,
@@ -58,7 +60,8 @@ public class SpaApi {
         KEYWORD_NOT_FOUND,
         PROCEDURE_NAME_NOT_FOUND,
         UNSUPPORTED_COMBINATION,
-        WRITER_ERROR
+        WRITER_ERROR,
+        UNDEFINED
     };
 
     [StructLayout(LayoutKind.Sequential)]
@@ -70,7 +73,7 @@ public class SpaApi {
         public int column_no;
     };
 
-    string spa_api_lib_path = "<PLACEHOLDER>";
+    const string spa_api_lib_path = "<PLACEHOLDER>";
 
     // Takes path to SPA lang source file and creates PKB instance
     // based on it. MUST be called before any functions from the API are called.
@@ -85,9 +88,10 @@ public class SpaApi {
 
     // Gets current error message from error buffer. MUST correspond
     // logically to error code. If it is not, then it means error message
-    // is "old".
+    // is "old". ALWAYS copy string returned by this function. DO NOT
+    // rely on memory of this string!!!
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
-    public static extern string GetErrorMessage();
+    public static extern IntPtr GetErrorMessage();
 
     // Gets current error code and OKays out current error code after
     // returning.
@@ -108,9 +112,10 @@ public class SpaApi {
     // Returns node's value. Eg. in case of assign statement value
     // will be the name of the variable, and in case of procedure value
     // is going to be procedure name and so on. In case of failure,
-    // return empty string and sets error code.
+    // return empty string and sets error code. ALWAYS copy string returned 
+    // by this function. DO NOT rely on memory of this string!!!
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
-    public static extern string GetNodeValue(uint id);
+    public static extern IntPtr GetNodeValue(uint id);
 
     // Follows relation. As parameters, takes statement type, id 
     // (statement id not node id!!!) and value which is explained in 
@@ -150,4 +155,11 @@ public class SpaApi {
     // In case of failure, returns NULL and sets error code.
     [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
     public static extern UIntPtr Parent(uint s1_type, uint s1, string s1_value, uint s2_type, uint s2, string s2_value);
+
+    // Parent* relation. As parameters, takes statement type, id 
+    // (statement id not node id!!!) and value which is explained in 
+    // GetNodeValue. Check 'Follows' comments for details.
+    // In case of failure, returns NULL and sets error code.
+    [DllImport(spa_api_lib_path, CallingConvention = CallingConvention.Cdecl)]
+    public static extern UIntPtr ParentTransitive(uint s1_type, uint s1, string s1_value, uint s2_type, uint s2, string s2_value);
 }
