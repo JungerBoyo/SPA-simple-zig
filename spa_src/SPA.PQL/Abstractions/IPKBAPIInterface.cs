@@ -18,7 +18,8 @@ namespace SPA.PQL.Abstractions {
             var errCode =  SpaApi.Init(path);
             if (errCode != 0)
             {
-                throw new ArgumentException(SpaApi.GetError());
+                var pointer = SpaApi.GetErrorMessage();
+                throw new ArgumentException(Marshal.PtrToStringAnsi(pointer));
             }
             var result = new List<ProgramElement>();
 
@@ -27,7 +28,7 @@ namespace SPA.PQL.Abstractions {
             {
                 var temp = SpaApi.GetNodeMetadata(i);
                 
-                if(temp.line_no == 0)
+                if(temp.type == 0)
                     break;
                 
                 result.Add(new ProgramElement()
@@ -45,13 +46,25 @@ namespace SPA.PQL.Abstractions {
 
         public bool Parent(uint s1_type, uint s1, uint s2_type, uint s2)
         {
-            throw new NotImplementedException();
+            var pointer = SpaApi.Parent(s1_type, s1, "", s2_type, s2, "");
+            
+            if (pointer == 0)
+                return false;
+            
+            return Marshal.ReadByte(unchecked((IntPtr)(long)(ulong)pointer)) > 0;
         }
 
         public bool Follow(uint s1_type, uint s1, uint s2_type, uint s2)
         {
-            var pointer = SpaApi.Follows(s1_type, s1, s2_type, s2);
-            return Marshal.ReadByte(unchecked((IntPtr)(long)(ulong)pointer)) > 0;
+            if (s1_type == s2_type && s1 == s2)
+                return false;
+            
+            var pointer = SpaApi.Follows(s1_type, s1, "", s2_type, s2, "");
+
+            if (pointer == 0)
+                return false;
+            
+            return (uint)Marshal.ReadInt32(unchecked((IntPtr)(long)(ulong)pointer)) > 0;
         }
 
         public bool Uses(uint s1_type, uint s1, uint s2_type, uint s2)
@@ -69,7 +82,11 @@ namespace SPA.PQL.Abstractions {
             var errCode = SpaApi.Deinit();
 
             if (errCode != 0)
-                throw new InvalidOperationException(SpaApi.GetError());
+            {
+                var pointer = SpaApi.GetErrorMessage();
+                var message = Marshal.PtrToStringAnsi(pointer);
+                throw new InvalidOperationException(message);
+            }
         }
     }
 }

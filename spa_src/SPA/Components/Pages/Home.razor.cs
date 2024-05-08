@@ -1,4 +1,5 @@
-﻿using SPA.PQL;
+﻿using Microsoft.AspNetCore.Components.Web;
+using SPA.PQL;
 using SPA.PQL.Abstractions;
 using SPA.PQL.Parser;
 
@@ -9,7 +10,7 @@ namespace SPA.Components.Pages {
         private PQLQueryValidationResult? _validationResult;
         private BaseQueryResult? _result;
 
-        public void Evaluate()
+        public void Evaluate(MouseEventArgs obj)
         {
             var path = $"/{Guid.NewGuid()}.txt";
             File.WriteAllText(path, _simpleProgram);

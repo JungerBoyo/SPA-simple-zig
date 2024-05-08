@@ -16,7 +16,7 @@ namespace SPA.PQL.QueryElements {
         {
             if (LeftReference.Type is PQLSuchThatConditionReferenceType.Variable)
             {
-                if (query.Variables.Any(x => x.Name == LeftReference.VariableName))
+                if (!query.Variables.Any(x => x.Name == LeftReference.VariableName))
                 {
                     result.Errors.Add($"Variable not declared: {LeftReference.VariableName}");
                 }
@@ -24,7 +24,7 @@ namespace SPA.PQL.QueryElements {
 
             if (RightReference.Type is PQLSuchThatConditionReferenceType.Variable)
             {
-                if (query.Variables.Any(x => x.Name == RightReference.VariableName))
+                if (!query.Variables.Any(x => x.Name == RightReference.VariableName))
                 {
                     result.Errors.Add($"Variable not declared: {RightReference.VariableName}");
                 }
@@ -41,6 +41,7 @@ namespace SPA.PQL.QueryElements {
                     EvaluateParent(pkbApi, variables);
                     break;
                 case RelationType.Follows:
+                    EvaluateFollow(pkbApi, variables);
                     break;
                 case RelationType.Modifies:
                     break;
@@ -91,7 +92,7 @@ namespace SPA.PQL.QueryElements {
             var leftStatementType = GetStatementType(LeftReference, variables);
             var rightStatementType = GetStatementType(RightReference, variables);
             var leftStatementNumbers = GetStatementNumbers(LeftReference, variables, out var leftSelectedVariable);
-            var rightStatementNumbers = GetStatementNumbers(LeftReference, variables, out var rightSelectedVariable);
+            var rightStatementNumbers = GetStatementNumbers(RightReference, variables, out var rightSelectedVariable);
 
             var results = new List<(uint left, uint right)>();
             
@@ -106,8 +107,11 @@ namespace SPA.PQL.QueryElements {
                 }
             }
 
-            leftSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y.left == x.StatementNumber));
-            rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y.right == x.StatementNumber));
+            if(leftSelectedVariable is not null)
+                leftSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y.left == x.StatementNumber));
+            
+            if(rightSelectedVariable is not null)
+                rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y.right == x.StatementNumber));
         }
         
         private static List<uint> GetStatementNumbers(PQLSuchThatConditionReference reference, List<EvaluatedVariable> variables, out EvaluatedVariable? selectedVariable)
