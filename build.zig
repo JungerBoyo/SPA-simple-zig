@@ -45,13 +45,12 @@ pub fn build(b: *std.Build) void {
     );
 
     var copy_spa_api_cs_decl = b.addSystemCommand(&[_][]const u8{
-        "lua", "utility_scripts/replacer.lua", "<PLACEHOLDER>", lib_spa_api_absolute_path, "src/spa_api.cs", "spa_src/"
+        "lua", "utility_scripts/replacer.lua", "<PLACEHOLDER>", lib_spa_api_absolute_path, "src/spa_api.cs", "spa_src/SPA.PQL/API/"
     });
 
     const copy_spa_api_cs_decl_step = b.step("Copy SPA API C# file", "Copy spa_api.cs to C# src code dir with proper shared lib spi api path.");
-
+    
     copy_spa_api_cs_decl_step.dependOn(&copy_spa_api_cs_decl.step);
-    //copy_spa_api_cs_decl_step.dependOn(&lib_spa_api.step);
     b.getInstallStep().dependOn(copy_spa_api_cs_decl_step);
 
     // This declares intent for the executable to be installed into the

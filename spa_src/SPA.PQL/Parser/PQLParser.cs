@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using SPA.PQL.Abstractions;
 using SPA.PQL.Enums;
 using SPA.PQL.Exceptions;
@@ -63,6 +62,7 @@ namespace SPA.PQL.Parser {
 
                 return new PQLQueryResult()
                 {
+                    IsBooleanResult = false,
                     VariableNames = variablesReturned,
                 };
             }
@@ -70,8 +70,18 @@ namespace SPA.PQL.Parser {
             if (!PQLParserHelper.IsValidVariableName(selectExpression))
                 throw new InvalidSelectDeclarationException(expression);
 
+            if (selectExpression == "BOOLEAN")
+            {
+                return new PQLQueryResult()
+                {
+                    IsBooleanResult = true,
+                    VariableNames = Array.Empty<string>(),
+                };
+            }
+            
             return new PQLQueryResult()
             {
+                IsBooleanResult = false,
                 VariableNames = [selectExpression],
             };
         }
@@ -80,12 +90,12 @@ namespace SPA.PQL.Parser {
         {
             foreach (var variableDeclaration in variableDeclarations)
             {
-                var tokens = variableDeclaration.SplitAt(' ');
+                var tokens = variableDeclaration.SplitAt("\\s+");
                 if (tokens.Length != 2)
                     throw new InvalidVariableDeclarationException(variableDeclaration);
 
-                var entityTypes = PQLParserHelper.GetEntityTypesByTypeName(tokens[0]);
-                if (entityTypes.Length == 0)
+                var entityType = PQLParserHelper.GetEntityTypesByTypeName(tokens[0]);
+                if (entityType is null)
                     throw new InvalidVariableDeclarationException(variableDeclaration);
 
                 var variableNames = tokens[1].Split(',', StringSplitOptions.TrimEntries);
@@ -97,7 +107,7 @@ namespace SPA.PQL.Parser {
 
                     yield return new PQLVariable()
                     {
-                        EntitiesTypes = entityTypes,
+                        EntityType = entityType.Value,
                         Name = variableName
                     };
                 }
@@ -200,7 +210,9 @@ namespace SPA.PQL.Parser {
 
             string relationName = condition.Substring(0, leftParenthesisIndex).Trim();
 
-            if (!PQLParserHelper.IsValidRelationName(relationName))
+            var relationType = PQLParserHelper.ParseRelationName(relationName);
+            
+            if (relationType is null)
                 throw new InvalidSuchThatConditionDeclarationException(condition);
 
             int callArgumentsLiteralLength = rightParenthesisIndex - leftParenthesisIndex - 1;
@@ -220,7 +232,7 @@ namespace SPA.PQL.Parser {
 
             return new PQLSuchThatCondition()
             {
-                RelationName = relationName,
+                Relation = relationType.Value,
                 LeftReference = ParseSuchThatConditionReference(arguments[0]),
                 RightReference = ParseSuchThatConditionReference(arguments[1]),
             };

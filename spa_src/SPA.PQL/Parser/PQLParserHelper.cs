@@ -1,59 +1,44 @@
 ﻿using System.Text.RegularExpressions;
+using SPA.PQL.API;
+using SPA.PQL.Elements;
 using SPA.PQL.Enums;
 using SPA.PQL.QueryElements;
 
 namespace SPA.PQL.Parser {
     internal static class PQLParserHelper {
-        private static readonly string[] ProcedureEntityTypes = ["Procedure"];
-        private static readonly string[] StatementListEntityTypes = ["StatementList"];
-
-        private static readonly string[] StatementEntityTypes =
-            ["Assign", "Call", "Plus", "Minus", "Times", "Variable", "Constant", "While", "If"];
-
-        private static readonly string[] AssignEntityTypes = ["Assign"];
-        private static readonly string[] PlusEntityTypes = ["Plus"];
-        private static readonly string[] MinusEntityTypes = ["Minus"];
-        private static readonly string[] TimesEntityTypes = ["Times"];
-        private static readonly string[] VariableEntityTypes = ["Variable"];
-        private static readonly string[] ConstantEntityTypes = ["Constant"];
-        private static readonly string[] WhileEntityTypes = ["While"];
-        private static readonly string[] IfEntityTypes = ["If"];
-        private static readonly string[] CallEntityTypes = ["Call"];
-        private static readonly string[] ProgramLineEntityTypes = ["Line"];
-
-        public static string[] GetEntityTypesByTypeName(string typeName)
+        public static SpaApi.StatementType? GetEntityTypesByTypeName(string typeName)
         {
             switch (typeName)
             {
                 case "procedure":
-                    return ProcedureEntityTypes;
+                    return SpaApi.StatementType.PROCEDURE;
                 case "stmtLst":
-                    return StatementListEntityTypes;
+                    return SpaApi.StatementType.STMT_LIST;
                 case "stmt":
-                    return StatementEntityTypes;
+                    return SpaApi.StatementType.NONE;
                 case "assign":
-                    return AssignEntityTypes;
+                    return SpaApi.StatementType.ASSIGN;
                 case "plus":
-                    return PlusEntityTypes;
+                    return SpaApi.StatementType.ADD;
                 case "minus":
-                    return MinusEntityTypes;
+                    return SpaApi.StatementType.SUB;
                 case "times":
-                    return TimesEntityTypes;
+                    return SpaApi.StatementType.MUL;
                 case "variable":
-                    return VariableEntityTypes;
+                    return SpaApi.StatementType.VAR;
                 case "constant":
-                    return ConstantEntityTypes;
+                    return SpaApi.StatementType.CONST;
                 case "while":
-                    return WhileEntityTypes;
+                    return SpaApi.StatementType.WHILE;
                 case "if":
-                    return IfEntityTypes;
+                    return SpaApi.StatementType.IF;
                 case "call":
-                    return CallEntityTypes;
+                    return SpaApi.StatementType.CALL;
                 case "prog_line":
-                    return ProgramLineEntityTypes;
+                    return SpaApi.StatementType.NONE;
             }
 
-            return Array.Empty<string>();
+            return null;
         }
 
         public static bool IsValidVariableName(string variableName)
@@ -62,9 +47,6 @@ namespace SPA.PQL.Parser {
                 return false;
 
             if (!Regex.IsMatch(variableName, "^[a-zA-Z][a-zA-Z0-9#]*$"))
-                return false;
-
-            if (GetEntityTypesByTypeName(variableName).Length > 0)
                 return false;
 
             return true;
@@ -80,27 +62,38 @@ namespace SPA.PQL.Parser {
             return Regex.IsMatch(expression, "^\"[a-zA-Z][a-zA-Z0-9#]\"$");
         }
 
-        public static bool IsValidRelationName(string relationName)
+        public static RelationType? ParseRelationName(string relationName)
         {
             switch (relationName)
             {
                 case "Parent":
+                    return RelationType.Parent;
                 case "Parent*":
+                    return RelationType.ParentAll;
                 case "Next":
+                    return RelationType.Next;
                 case "Next*":
+                    return RelationType.NextAll;
                 case "Assign":
-                case "Modifies":
+                    return RelationType.Assign;
+                case "Modifies": return RelationType.Modifies;
                 case "Uses":
+                    return RelationType.Uses;
                 case "Calls":
+                    return RelationType.Calls;
                 case "Calls*":
+                    return RelationType.CallsAll;
                 case "Follows":
+                    return RelationType.Follows;
                 case "Follows*":
+                    return RelationType.FollowsAll;
                 case "Affects":
+                    return RelationType.Affects;
                 case "Affects*":
-                    return true;
+                    return RelationType.AffectsAll;
             }
 
-            return false;
+            return null;
         }
 
         public static List<KeyValuePair<ConditionType, string>> GetAllConditionSubstrings(string expression)

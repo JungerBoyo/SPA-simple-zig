@@ -1,3 +1,6 @@
+using SPA.PQL.API;
+using SPA.PQL.Elements;
+using SPA.PQL.Enums;
 using SPA.PQL.Exceptions;
 using SPA.PQL.Parser;
 using SPA.PQL.QueryElements;
@@ -12,7 +15,7 @@ public class PQLParserTests {
     {
         //prepare
         var parser = new PQLParser();
-        var expressions = new string[] {"assign a"};
+        var expressions = new string[] {"assign \na"};
 
         //act
         var result = parser.ParseVariables(expressions).ToList();
@@ -21,8 +24,7 @@ public class PQLParserTests {
         Assert.NotNull(result);
         Assert.Single(result);
         Assert.Equal("a", result[0].Name);
-        Assert.Single(result[0].EntitiesTypes);
-        Assert.Equal("Assign", result[0].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[0].EntityType);
     }
     
     [Fact]
@@ -39,11 +41,9 @@ public class PQLParserTests {
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
         Assert.Equal("a", result[0].Name);
-        Assert.Single(result[0].EntitiesTypes);
-        Assert.Equal("Assign", result[0].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[0].EntityType);
         Assert.Equal("b", result[1].Name);
-        Assert.Single(result[1].EntitiesTypes);
-        Assert.Equal("Assign", result[1].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[1].EntityType);
     }
     
     [Fact]
@@ -60,11 +60,9 @@ public class PQLParserTests {
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
         Assert.Equal("a", result[0].Name);
-        Assert.Single(result[0].EntitiesTypes);
-        Assert.Equal("Assign", result[0].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[0].EntityType);
         Assert.Equal("b", result[1].Name);
-        Assert.Single(result[1].EntitiesTypes);
-        Assert.Equal("Assign", result[1].EntitiesTypes[0]);
+        Assert.Equal(SpaApi.StatementType.ASSIGN, result[1].EntityType);
     }
     
     [Fact]
@@ -219,7 +217,7 @@ public class PQLParserTests {
         Assert.NotNull(condition);
         Assert.NotNull(condition.LeftReference);
         Assert.NotNull(condition.RightReference);
-        Assert.Equal("Parent*", condition.RelationName);
+        Assert.Equal(RelationType.ParentAll, condition.Relation);
         Assert.Equal(PQLSuchThatConditionReferenceType.AnyValue, condition.LeftReference.Type);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, condition.RightReference.Type);
         Assert.Equal("a1", condition.RightReference.VariableName);
@@ -247,7 +245,7 @@ public class PQLParserTests {
         Assert.NotNull(firstCondition);
         Assert.NotNull(firstCondition.LeftReference);
         Assert.NotNull(firstCondition.RightReference);
-        Assert.Equal("Parent*", firstCondition.RelationName);
+        Assert.Equal(RelationType.ParentAll, firstCondition.Relation);
         Assert.Equal(PQLSuchThatConditionReferenceType.AnyValue, firstCondition.LeftReference.Type);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, firstCondition.RightReference.Type);
         Assert.Equal("a1", firstCondition.RightReference.VariableName);        
@@ -257,7 +255,7 @@ public class PQLParserTests {
         Assert.NotNull(secondCondition);
         Assert.NotNull(secondCondition.LeftReference);
         Assert.NotNull(secondCondition.RightReference);
-        Assert.Equal("Parent", secondCondition.RelationName);
+        Assert.Equal(RelationType.Parent, secondCondition.Relation);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, secondCondition.LeftReference.Type);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, secondCondition.RightReference.Type);
         Assert.Equal("a1", secondCondition.LeftReference.VariableName);
@@ -286,7 +284,7 @@ public class PQLParserTests {
         Assert.NotNull(firstCondition);
         Assert.NotNull(firstCondition.LeftReference);
         Assert.NotNull(firstCondition.RightReference);
-        Assert.Equal("Parent*", firstCondition.RelationName);
+        Assert.Equal(RelationType.ParentAll, firstCondition.Relation);
         Assert.Equal(PQLSuchThatConditionReferenceType.AnyValue, firstCondition.LeftReference.Type);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, firstCondition.RightReference.Type);
         Assert.Equal("a1", firstCondition.RightReference.VariableName);        
@@ -296,7 +294,7 @@ public class PQLParserTests {
         Assert.NotNull(secondCondition);
         Assert.NotNull(secondCondition.LeftReference);
         Assert.NotNull(secondCondition.RightReference);
-        Assert.Equal("Parent", secondCondition.RelationName);
+        Assert.Equal(RelationType.Parent, secondCondition.Relation);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, secondCondition.LeftReference.Type);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, secondCondition.RightReference.Type);
         Assert.Equal("a1", secondCondition.LeftReference.VariableName);
@@ -325,7 +323,7 @@ public class PQLParserTests {
         Assert.NotNull(firstCondition);
         Assert.NotNull(firstCondition.LeftReference);
         Assert.NotNull(firstCondition.RightReference);
-        Assert.Equal("Parent*", firstCondition.RelationName);
+        Assert.Equal(RelationType.ParentAll, firstCondition.Relation);
         Assert.Equal(PQLSuchThatConditionReferenceType.AnyValue, firstCondition.LeftReference.Type);
         Assert.Equal(PQLSuchThatConditionReferenceType.Variable, firstCondition.RightReference.Type);
         Assert.Equal("a1", firstCondition.RightReference.VariableName);        

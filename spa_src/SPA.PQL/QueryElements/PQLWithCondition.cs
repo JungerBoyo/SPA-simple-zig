@@ -1,4 +1,5 @@
 ﻿using SPA.PQL.Abstractions;
+using SPA.PQL.Evaluator;
 using SPA.PQL.Parser;
 
 namespace SPA.PQL.QueryElements {
@@ -25,6 +26,11 @@ namespace SPA.PQL.QueryElements {
             }
             
             //TODO: Validate the Metadata name
+        }
+
+        public override void Evaluate(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        {
+            throw new NotImplementedException();
         }
     }
 }
