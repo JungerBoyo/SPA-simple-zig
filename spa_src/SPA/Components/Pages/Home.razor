@@ -35,18 +35,7 @@
     <div class="col-12">
         @if (_result is not null)
         {
-            @if (_result is BooleanQueryResult booleanQueryResult)
-            {
-                @(booleanQueryResult.ToString())
-            }
-
-            if (_result is VariableQueryResult variableQueryResult)
-            {
-                @foreach (var item in variableQueryResult.Results)
-                {
-                    <span>@item </span>
-                }
-            }
+            @(_result.ToString())
         }
     </div>
 </div>

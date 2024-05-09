@@ -12,7 +12,7 @@ namespace SPA.PQL.Abstractions {
         void DeInit();
     }
 
-    public class PKBInterface : IPKBInterface {
+    public sealed class PKBInterface : IPKBInterface {
         public List<ProgramElement> Init(string path)
         {
             var errCode =  SpaApi.Init(path);

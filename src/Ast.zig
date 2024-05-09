@@ -123,7 +123,7 @@ fn followsModeSelUndef(self: *Self,
             continue;
         }
         if (self.followsCheck(s_sel_type, s_sel, s_sel_value, s_undef_type, s_undef, s_undef_value)) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(self.statement_map[i])));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(self.statement_map[i])), .little);
             written += 1;
         }
     }
@@ -140,7 +140,7 @@ fn followsModeSelDef(self: *Self,
         return 0;
     }
     if (self.followsCheck(s_def_type, s_def, s_def_value, s_sel_type, s_sel, s_sel_value)) {
-        try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(self.statement_map[s_sel])));
+        try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(self.statement_map[s_sel])), .little);
         return 1;
     }
     return 0;
@@ -157,7 +157,7 @@ fn followsModeDef(self: *Self,
     }
     if (s1_index + 1 < self.nodes.len and self.nodes[s1_index + 1].metadata.statement_id == s2) {
         if (self.followsCheck(s1_type, s1, s1_value, s2_type, s2, s2_value)) {
-            try result_writer.writeIntLittle(ResultIntType, 1);
+            try result_writer.writeInt(ResultIntType, 1, .little);
             return 1;
         }
     }
@@ -212,7 +212,7 @@ fn followsTransitiveModeSelUndef(self: *Self,
             const s_undef_node = self.nodes[@intCast(s_undef_index)];
             if (s_undef_node.parent_index == s_sel_node.parent_index) {
                 if (checkNodeType(s_undef_node.type, s_undef_type) and self.checkValue(s_undef_node, s_undef_value)) {
-                    try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_sel_index)));
+                    try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_sel_index)), .little);
                     written += 1;
                     break;
                 }
@@ -242,7 +242,7 @@ fn followsTransitiveModeSelDef(self: *Self,
         const s_sel_node = self.nodes[@intCast(s_sel_index)];
         if (s_sel_node.parent_index == s_def_parent_index) {
             if (checkNodeType(s_sel_node.type, s_sel_type) and self.checkValue(s_sel_node, s_sel_value)) {
-                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_sel_index)));
+                try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_sel_index)), .little);
                 written += 1;
             }
         } else {
@@ -266,7 +266,7 @@ fn followsTransitiveModeDef(self: *Self,
     for (self.nodes[(s1_index + 1)..]) |s2_node| {
         if (s2_node.parent_index == s1_parent_index) {
             if (s2_node.metadata.statement_id == s2 and checkNodeType(s2_node.type, s2_type) and self.checkValue(s2_node, s2_value)) {
-                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+                try result_writer.writeInt(ResultIntType, @as(ResultIntType, 1), .little);
                 return 1;
             }
         } else {
@@ -363,7 +363,7 @@ fn parentModeSelChildUndefParent(self: *Self,
             const parent_index = stmt_list_node.parent_index;    
             const parent_node = self.nodes[parent_index];
             if (parent_node.type == s_parent_type and self.checkValue(parent_node, s_parent_value)) {
-                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_child_index)));
+                try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_child_index)), .little);
                 written += 1;
             }
         }
@@ -386,7 +386,7 @@ fn parentModeSelParentUndefChild(self: *Self,
 
             for (children_slice) |child_node| {
                 if(checkNodeType(child_node.type, s_child_type) and self.checkValue(child_node, s_child_value)) {
-                    try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)));
+                    try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)), .little);
                     written += 1;
                     break;
                 }
@@ -410,7 +410,7 @@ fn parentModeSelParentDefChild(self: *Self,
     const parent_index = stmt_list_node.parent_index;
     const parent_node = self.nodes[parent_index];
     if (parent_node.type == s_parent_type and self.checkValue(parent_node, s_parent_value)) {
-        try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(parent_index)));
+        try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(parent_index)), .little);
         return 1;
     }
     return 0;
@@ -433,7 +433,7 @@ fn parentModeSelChildDefParent(self: *Self,
     var written: u32 = 0;
     for (children_slice, children_index..) |child_node, i| {
         if (checkNodeType(child_node.type, s_child_type) and self.checkValue(child_node, s_child_value)) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(i)));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(i)), .little);
             written += 1;
         }
     }
@@ -452,12 +452,12 @@ fn parentModeDef(self: *Self,
     }
     if (s_parent_node.type == .WHILE) {
         if (self.findInStmtListBinary(self.getWhileStmtListChildren(s_parent_index), s_child, s_child_type, s_child_value)) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, 1), .little);
             return 1;
         }
     } else if (s_parent_node.type == .IF) {
         if (self.findInStmtListBinary(self.getIfElseStmtListChildren(s_parent_index), s_child, s_child_type, s_child_value)) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, 1), .little);
             return 1;
         }
     }
@@ -512,7 +512,7 @@ fn parentTransitiveModeSelChildUndefParent(self: *Self,
                 const parent_node = self.nodes[parent_index];
                 if (parent_node.type == s_parent_type and self.checkValue(parent_node, s_parent_value)) {
                     written += 1;
-                    try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_child_index)));
+                    try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_child_index)), .little);
                     break;
                 }
                 parent_index = self.nodes[parent_index].parent_index;
@@ -537,7 +537,7 @@ fn parentTransitiveModeSelParentUndefChildInternal(self: *Self,
     for (children_slice, children_index..) |child_node, child_index| {
         if(checkNodeType(child_node.type, s_child_type) and self.checkValue(child_node, s_child_value)) {
             if (s_parent_node.type == s_parent_type and self.checkValue(s_parent_node, s_parent_value)) {
-                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)));
+                try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)), .little);
                 written.* += 1;
             }
             return child_node.metadata.statement_id;
@@ -569,7 +569,7 @@ fn parentTransitiveModeSelParentUndefChild(self: *Self,
                     self.getIfElseStmtListChildren(s_parent_index);
             for (children_slice, children_index..) |child_node, child_index| {
                 if(checkNodeType(child_node.type, s_child_type) and self.checkValue(child_node, s_child_value)) {
-                    try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)));
+                    try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)), .little);
                     written += 1;
                     break;
                 } else if (child_node.type == .WHILE or child_node.type == .IF) {
@@ -580,7 +580,7 @@ fn parentTransitiveModeSelParentUndefChild(self: *Self,
                     );
                     if (s != 0) {
                         s_parent = s;
-                        try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)));
+                        try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(s_parent_index)), .little);
 
                         written += 1;
                         break;
@@ -608,7 +608,7 @@ fn parentTransitiveModeSelParentDefChild(self: *Self,
         const parent_node = self.nodes[parent_index];
         if (parent_node.type == s_parent_type and self.checkValue(parent_node, s_parent_value)) {
             written += 1;
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, parent_index));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, parent_index), .little);
         }
         parent_index = self.nodes[parent_index].parent_index;
     }
@@ -630,12 +630,12 @@ fn parentTransitiveModeSelChildDefParentInternal(self: *Self,
     for (children_slice, children_index..) |child_node, child_index| {
         if (child_node.type == .WHILE or child_node.type == .IF) {
             if (checkNodeType(child_node.type, s_child_type) and self.checkValue(child_node, s_child_value)) {
-                try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(child_index)));
+                try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(child_index)), .little);
                 written += 1;
             }
             written += try self.parentTransitiveModeSelChildDefParentInternal(result_writer, child_index, s_child_type, s_child_value);
         } else if (checkNodeType(child_node.type, s_child_type) and self.checkValue(child_node, s_child_value)) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, @intCast(child_index)));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(child_index)), .little);
             written += 1;
         } 
     }
@@ -673,7 +673,7 @@ fn parentTransitiveModeDef(self: *Self,
     var parent_index = s_child_node.parent_index;
     while (parent_index != 0) {
         if (parent_index == s_parent_index) {
-            try result_writer.writeIntLittle(ResultIntType, @as(ResultIntType, 1));
+            try result_writer.writeInt(ResultIntType, @as(ResultIntType, 1), .little);
             return 1;
         }
         parent_index = self.nodes[parent_index].parent_index;

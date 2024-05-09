@@ -7,7 +7,7 @@ using SPA.PQL.QueryElements;
 [assembly: InternalsVisibleTo("SPA.PQL.Tests")]
 
 namespace SPA.PQL.Parser {
-    internal class PQLParser {
+    internal sealed class PQLParser {
         private readonly StringSplitOptions _tripOptions = StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries;
         internal const string SuchThatRegex = "such\\s+that";
         internal const string That = "that";

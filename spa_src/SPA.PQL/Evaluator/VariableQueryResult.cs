@@ -1,7 +1,10 @@
 ﻿using SPA.PQL.Abstractions;
 
-namespace SPA.PQL.Evaluator {
-    public class VariableQueryResult : BaseQueryResult {
-        public required List<uint> Results { get; set; }
+namespace SPA.PQL.Evaluator;
+
+public sealed class VariableQueryResult : QueryResult {
+    public VariableQueryResult(IEnumerable<string> queries, IEnumerable<uint> results) : base(queries)
+    {
+        Results = results.Select(x => x.ToString()).ToList();
     }
 }

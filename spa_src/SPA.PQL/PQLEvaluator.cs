@@ -4,76 +4,74 @@ using SPA.PQL.Elements;
 using SPA.PQL.Evaluator;
 using SPA.PQL.Parser;
 
-namespace SPA.PQL {
-    public class PQLEvaluator : IDisposable {
-        private readonly IPKBInterface _pkbApi;
-        private readonly PQLQuery _query;
+namespace SPA.PQL;
 
-        public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi)
+public sealed class PQLEvaluator : IDisposable {
+    private readonly IPKBInterface _pkbApi;
+    private readonly PQLQuery _query;
+
+    public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi)
+    {
+        _pkbApi = pkbApi;
+        var parser = new PQLParser();
+        _query = parser.Parse(pqlQuery);
+    }
+
+    public PQLQueryValidationResult ValidateQuery()
+    {
+        return _query.ValidateQuery();
+    }
+
+    public QueryResult Evaluate(string simpleProgramFilePath)
+    {
+        var programElements = _pkbApi.Init(simpleProgramFilePath);
+
+        //RemoveFreeVariables();
+
+        var loadedVariables = InitVariables(programElements).ToList();
+        var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
+        foreach (var condition in _query.Conditions)
         {
-            _pkbApi = pkbApi;
-            var parser = new PQLParser();
-            _query = parser.Parse(pqlQuery);
+            condition.Evaluate(_pkbApi, loadedVariables);
         }
 
-        public PQLQueryValidationResult ValidateQuery()
+        if (_query.QueryResult.IsBooleanResult)
         {
-            return _query.ValidateQuery();
+            return new BooleanQueryResult(compiledRelations,
+                [ loadedVariables.All(x => x.Elements.Count > 0) ]);
         }
 
-        public BaseQueryResult Evaluate(string simpleProgramFilePath)
+        if (_query.QueryResult.VariableNames.Length == 1)
         {
-            var programElements = _pkbApi.Init(simpleProgramFilePath);
+            var data = loadedVariables
+                .First(x => x.VariableName == _query.QueryResult.VariableNames[0]).Elements
+                .Select(x => x.StatementNumber)
+                .ToList();
+                
+            return new VariableQueryResult(compiledRelations, data);
+        }
 
-            //RemoveFreeVariables();
+        //TODO: Implement tuple return type
 
-            var loadedVariables = InitVariables(programElements).ToList();
+        return null!;
+    }
 
-            foreach (var condition in _query.Conditions)
+    private IEnumerable<EvaluatedVariable> InitVariables(List<ProgramElement> elements)
+    {
+        foreach (var variable in _query.Variables)
+        {
+            yield return new EvaluatedVariable()
             {
-                condition.Evaluate(_pkbApi, loadedVariables);
-            }
-
-            if (_query.QueryResult.IsBooleanResult)
-            {
-                return new BooleanQueryResult()
-                {
-                    Result = loadedVariables.All(x => x.Elements.Count > 0),
-                };
-            }
-
-            if (_query.QueryResult.VariableNames.Length == 1)
-            {
-                var data = loadedVariables.First(x => x.VariableName == _query.QueryResult.VariableNames[0])
-                    .Elements.Select(x => x.StatementNumber).ToList();
-                return new VariableQueryResult()
-                {
-                    Results = data,
-                };
-            }
-
-            //TODO: Implement tuple return type
-
-            return null!;
+                VariableName = variable.Name,
+                StatementType = variable.EntityType,
+                Elements = elements.Where(x => x.Type == variable.EntityType || variable.EntityType == SpaApi.StatementType.NONE)
+                    .ToList(),
+            };
         }
+    }
 
-        private IEnumerable<EvaluatedVariable> InitVariables(List<ProgramElement> elements)
-        {
-            foreach (var variable in _query.Variables)
-            {
-                yield return new EvaluatedVariable()
-                {
-                    VariableName = variable.Name,
-                    StatementType = variable.EntityType,
-                    Elements = elements.Where(x => x.Type == variable.EntityType || variable.EntityType == SpaApi.StatementType.NONE)
-                        .ToList(),
-                };
-            }
-        }
-
-        public void Dispose()
-        {
-            _pkbApi.DeInit();
-        }
+    public void Dispose()
+    {
+        _pkbApi.DeInit();
     }
 }

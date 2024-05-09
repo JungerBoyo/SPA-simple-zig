@@ -56,9 +56,9 @@ fn checkExecute(
 
 fn checkResult(ast: *AST, buffer: *const [4]u8, expected: u32, convert: bool) !void {
     if (convert) {
-        try std.testing.expectEqual(expected, ast.nodes[std.mem.readInt(u32, buffer, .Little)].metadata.statement_id);
+        try std.testing.expectEqual(expected, ast.nodes[std.mem.readInt(u32, buffer, .little)].metadata.statement_id);
     } else {
-        try std.testing.expectEqual(expected, std.mem.readInt(u32, buffer, .Little));
+        try std.testing.expectEqual(expected, std.mem.readInt(u32, buffer, .little));
     }
 }
 //
