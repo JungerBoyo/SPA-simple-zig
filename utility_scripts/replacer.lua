@@ -20,15 +20,29 @@ local function replaceContent(content, pattern, replacement)
 	return content:gsub(pattern, replacement)
 end
 
-	--cli
+local function pathExists(path)
+	if os.rename(path, path) ~= nil then
+		return true
+	end
+	return false
+end
+local function createPath(path)
+	path = string.gsub(path, "\\", "/")
+	os.execute("mkdir " .. path)
+end
+
+--cli
 assert(#{ ... } >= 4, "not enough arguments")
 local pattern, replacement, inputPath, outputDir, v = ...
 
-	--bez cli
---local pattern, replacement, inputPath, outputDir, v = "o+", "xx", "test.txt", "resources", v
+--bez cli
+--local pattern, replacement, inputPath, outputDir, v = "o+", "xx", "test.txt", "resources/", true
 
 local content = readFile(inputPath)
 local newContent = replaceContent(content, pattern, replacement)
+if not pathExists(outputDir) then
+	createPath(outputDir)
+end
 local outputPath = outputDir .. extractFilename(inputPath)
 writeFile(outputPath, newContent)
 
