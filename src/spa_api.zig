@@ -50,7 +50,7 @@ fn makeInstance(simple_src_file_path: [*:0]const u8) Error!SpaInstance {
     var parser = try ASTParser.init(std.heap.page_allocator, tokenizer.tokens.items[0..], error_buffer_stream.writer());
     defer parser.deinit();
 
-    var ast = try parser.parse();
+    const ast = try parser.parse();
 
     return .{ .ast = ast };
 }

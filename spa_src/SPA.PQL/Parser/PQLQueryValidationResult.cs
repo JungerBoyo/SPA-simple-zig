@@ -1,5 +1,5 @@
 ﻿namespace SPA.PQL.Parser {
-    public class PQLQueryValidationResult {
+    public sealed class PQLQueryValidationResult {
         public List<string> Errors { get; set; }
         public List<string> Warnings { get; set; }
 

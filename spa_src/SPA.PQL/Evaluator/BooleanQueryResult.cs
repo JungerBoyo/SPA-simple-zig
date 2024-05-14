@@ -1,7 +1,11 @@
 ﻿using SPA.PQL.Abstractions;
 
 namespace SPA.PQL.Evaluator {
-    public class BooleanQueryResult : BaseQueryResult {
-        public bool Result { get; set; }
+    public sealed class BooleanQueryResult : QueryResult
+    {
+        public BooleanQueryResult(IEnumerable<string> queries, IEnumerable<bool> results) : base(queries)
+        {
+            Results = results.Select(x => x.ToString()).ToList();
+        }
     }
 }

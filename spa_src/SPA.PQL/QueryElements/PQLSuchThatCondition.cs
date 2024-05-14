@@ -1,7 +1,5 @@
-﻿using System.Runtime.InteropServices;
-using SPA.PQL.Abstractions;
+﻿using SPA.PQL.Abstractions;
 using SPA.PQL.API;
-using SPA.PQL.Elements;
 using SPA.PQL.Enums;
 using SPA.PQL.Evaluator;
 using SPA.PQL.Parser;
@@ -86,7 +84,7 @@ namespace SPA.PQL.QueryElements {
                 => pkbApi.Uses(leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber));
         }
 
-        public void EvaluateRelation(IPKBInterface pkbApi, List<EvaluatedVariable> variables,
+        private void EvaluateRelation(IPKBInterface pkbApi, List<EvaluatedVariable> variables,
             Func<IPKBInterface, uint, uint, uint, uint, bool> relationCheck)
         {
             var leftStatementType = GetStatementType(LeftReference, variables);
@@ -145,5 +143,7 @@ namespace SPA.PQL.QueryElements {
 
             return (uint)SpaApi.StatementType.NONE;
         }
+
+        public override string ToString() => $"Select a such that {Relation} ({LeftReference} {RightReference})";
     }
 }

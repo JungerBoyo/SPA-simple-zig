@@ -8,7 +8,7 @@ namespace SPA.Components.Pages {
         private string _pqlQuery = string.Empty;
         private string _simpleProgram = string.Empty;
         private PQLQueryValidationResult? _validationResult;
-        private BaseQueryResult? _result;
+        private QueryResult? _result;
 
         public void Evaluate(MouseEventArgs obj)
         {

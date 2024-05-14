@@ -192,7 +192,7 @@ pub fn tokenize(self: *Self, reader: anytype) Error!void {
 
         self.column_no = 0;
         while (self.column_no < self.line.?.len) {
-            var token = self.parseToken() catch |e| {
+            const token = self.parseToken() catch |e| {
                 eof = true;
                 return e;
             };

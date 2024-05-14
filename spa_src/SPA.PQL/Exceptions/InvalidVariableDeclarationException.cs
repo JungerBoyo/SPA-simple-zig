@@ -1,5 +1,5 @@
 ﻿namespace SPA.PQL.Exceptions {
-    public class InvalidVariableDeclarationException : InvalidDeclarationException {
+    public sealed class InvalidVariableDeclarationException : InvalidDeclarationException {
         public InvalidVariableDeclarationException(string declaration): base($"Invalid declaration of variable", declaration)
         {
             Declaration = declaration;

@@ -8,7 +8,7 @@ using Xunit;
 
 namespace SPA.PQL.Tests;
 
-public class PQLParserTests {
+public sealed class PQLParserTests {
     
     [Fact]
     public void Should_Parse_Single_Assign_Variable()
