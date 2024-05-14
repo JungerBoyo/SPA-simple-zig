@@ -6,8 +6,12 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <Folder Include="API\" />
-    </ItemGroup>
+    <Target Name="CustomBeforeBuild" BeforeTargets="BeforeBuild">
+        <Message Text="Executing zig build process." Importance="high" />
+        <Exec Command="zig build" WorkingDirectory="$(MSBuildProjectDirectory)"/>
+    </Target>
 
+    <ItemGroup>
+        <Compile Include="$(MSBuildProjectDirectory)\API\spa_api.cs" />
+    </ItemGroup>
 </Project>
