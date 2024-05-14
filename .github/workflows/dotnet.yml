@@ -17,6 +17,8 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
+    - name: Setup zig
+      uses: goto-bus-stop/setup-zig@v2
     - name: Restore dependencies
       run: dotnet restore spa_src/SPA.sln
     - name: Build
