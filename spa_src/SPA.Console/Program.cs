@@ -17,7 +17,8 @@ using (var evaluator = new PQLEvaluator(_pqlQuery, new PKBInterface()))
     if (_validationResult.Errors.Count > 0)
         return;
 
-var result = evaluator.Evaluate(path);
-WriteLine(result.ToString());
-WriteLine("Press any key to exit...");
-ReadLine();
+    var result = evaluator.Evaluate(path);
+    WriteLine(result.ToString());
+    WriteLine("Press any key to exit...");
+    ReadLine();
+}
