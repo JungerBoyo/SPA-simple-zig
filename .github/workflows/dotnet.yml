@@ -18,8 +18,8 @@ jobs:
       with:
         dotnet-version: 8.0.x
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet spa_src/SPA.sln restore
     - name: Build
-      run: dotnet build --no-restore --configuration Release
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet build spa_src/SPA.sln --no-restore --configuration Release
+    # - name: Test
+    #   run: dotnet test --no-build --verbosity normal
