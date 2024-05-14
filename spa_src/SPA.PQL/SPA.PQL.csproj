@@ -11,6 +11,11 @@
         <Exec Command="zig build" WorkingDirectory="$(MSBuildProjectDirectory)"/>
     </Target>
 
+    <Target Name="CustomClean" AfterTargets="Clean">
+        <Message Text="Cleaning up generated .cs file." Importance="high" />
+        <Delete Files="$(MSBuildProjectDirectory)\API\spa_api.cs" />
+    </Target>
+
     <ItemGroup>
         <Compile Include="$(MSBuildProjectDirectory)\API\spa_api.cs" />
     </ItemGroup>
