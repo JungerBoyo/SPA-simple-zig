@@ -6,8 +6,17 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <Folder Include="API\" />
-    </ItemGroup>
+    <Target Name="CustomBeforeBuild" BeforeTargets="BeforeBuild">
+        <Message Text="Executing zig build process." Importance="high" />
+        <Exec Command="zig build" WorkingDirectory="$(MSBuildProjectDirectory)"/>
+    </Target>
 
+    <Target Name="CustomClean" AfterTargets="Clean">
+        <Message Text="Cleaning up generated .cs file." Importance="high" />
+        <Delete Files="$(MSBuildProjectDirectory)\API\spa_api.cs" />
+    </Target>
+
+    <ItemGroup>
+        <Compile Include="$(MSBuildProjectDirectory)\API\spa_api.cs" />
+    </ItemGroup>
 </Project>
