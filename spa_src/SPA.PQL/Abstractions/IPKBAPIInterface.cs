@@ -10,6 +10,7 @@ namespace SPA.PQL.Abstractions {
         bool Uses(uint s1_type, uint s1, uint s2_type, uint s2);
         bool Modifies(uint s1_type, uint s1, uint s2_type, uint s2);
         void DeInit();
+        string GetNodeMetadata(uint statementNo);
     }
 
     public sealed class PKBInterface : IPKBInterface {
@@ -46,7 +47,7 @@ namespace SPA.PQL.Abstractions {
 
         public bool Parent(uint s1_type, uint s1, uint s2_type, uint s2)
         {
-            var pointer = SpaApi.Parent(s1_type, s1, "", s2_type, s2, "");
+            var pointer = SpaApi.Parent(s1_type, s1, string.Empty, s2_type, s2, string.Empty);
             
             if (pointer == 0)
                 return false;
@@ -59,7 +60,7 @@ namespace SPA.PQL.Abstractions {
             if (s1_type == s2_type && s1 == s2)
                 return false;
             
-            var pointer = SpaApi.Follows(s1_type, s1, "", s2_type, s2, "");
+            var pointer = SpaApi.Follows(s1_type, s1, string.Empty, s2_type, s2, string.Empty);
 
             if (pointer == 0)
                 return false;
@@ -77,6 +78,13 @@ namespace SPA.PQL.Abstractions {
             throw new NotImplementedException();
         }
 
+        public string GetNodeMetadata(uint statementNo)
+        {
+            var pointer = SpaApi.GetNodeValue(statementNo);
+
+            return Marshal.PtrToStringAnsi(pointer) ?? string.Empty;
+        }
+        
         public void DeInit()
         {
             var errCode = SpaApi.Deinit();

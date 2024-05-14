@@ -2,17 +2,20 @@
 using SPA.PQL.Abstractions;
 using static System.Console;
 
-const string simpleProgram = "procedure p {\nx=1;\nx = 1;\n}";
-const string pqlQuery = "assign a, b;\nSelect a such that Parent(_, b)";
+var _simpleProgram = "procedure p {\nx=1;\nx = 1;\n}";
+var _pqlQuery = "assign a, b;\nSelect a with\"ab\" = \"ab\"";
 
-var path = $"{AppContext.BaseDirectory}/simple.txt";
-File.WriteAllText(path, simpleProgram);
+// assign a, b; select b such that Parent("x", a) and Follows(a, b)
 
-using var evaluator = new PQLEvaluator(pqlQuery, new PKBInterface());
-var validationResult = evaluator.ValidateQuery();
+var path = $"C:\\Users\\PiotrSzuflicki\\Desktop\\Test\\simple.txt";
+File.WriteAllText(path, _simpleProgram);
 
-if (validationResult.Errors.Count > 0)
-    return;
+using (var evaluator = new PQLEvaluator(_pqlQuery, new PKBInterface()))
+{
+    var _validationResult = evaluator.ValidateQuery();
+
+    if (_validationResult.Errors.Count > 0)
+        return;
 
 var result = evaluator.Evaluate(path);
 WriteLine(result.ToString());
