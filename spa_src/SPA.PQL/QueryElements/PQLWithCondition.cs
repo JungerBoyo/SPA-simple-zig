@@ -18,7 +18,6 @@ namespace SPA.PQL.QueryElements {
         {
             ValidateReference(LeftReference, query, result);
             ValidateReference(RightReference, query, result);
-
         }
 
         public override void Evaluate(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
@@ -27,7 +26,7 @@ namespace SPA.PQL.QueryElements {
             var rightValue = GetValue(RightReference);
 
             var leftCollection = GetStatementCollection(variables, LeftReference, out var leftVariable);
-            var rightCollection = GetStatementCollection(variables, LeftReference, out var rightVariable);
+            var rightCollection = GetStatementCollection(variables, RightReference, out var rightVariable);
 
             var result = new List<(uint left, uint right)>();
             
@@ -44,8 +43,8 @@ namespace SPA.PQL.QueryElements {
                     }
                 }
 
-                leftVariable.Elements.RemoveAll(x => result.Any(y => y.left == x.StatementNumber));
-                rightVariable.Elements.RemoveAll(x => result.Any(y => y.right == x.StatementNumber));
+                leftVariable.Elements.RemoveAll(x => !result.Any(y => y.left == x.StatementNumber));
+                rightVariable.Elements.RemoveAll(x => !result.Any(y => y.right == x.StatementNumber));
             }
 
             if (leftCollection is not null && rightCollection is null)
@@ -58,7 +57,7 @@ namespace SPA.PQL.QueryElements {
                     }
                 }
 
-                leftVariable.Elements.RemoveAll(x => result.Any(y => y.left == x.StatementNumber));
+                leftVariable.Elements.RemoveAll(x => !result.Any(y => y.left == x.StatementNumber));
             }
             
             if (leftCollection is null && rightCollection is not null)
@@ -71,7 +70,7 @@ namespace SPA.PQL.QueryElements {
                     }
                 }
 
-                rightVariable.Elements.RemoveAll(x => result.Any(y => y.left == x.StatementNumber));
+                rightVariable.Elements.RemoveAll(x => !result.Any(y => y.left == x.StatementNumber));
             }
 
             if (leftCollection is null && rightCollection is null)
@@ -128,7 +127,7 @@ namespace SPA.PQL.QueryElements {
                     break;
                 case PQLWithConditionReferenceType.Metadata:
                     CheckVariableDeclaration(query, result, reference.VariableName);
-                    CheckMetadataName(result, reference.VariableName);
+                    CheckMetadataName(result, reference.MetadataFieldName);
                     break;
             }
         }

@@ -1,6 +1,5 @@
 ﻿using System.Text.RegularExpressions;
 using SPA.PQL.API;
-using SPA.PQL.Elements;
 using SPA.PQL.Enums;
 using SPA.PQL.QueryElements;
 
@@ -59,7 +58,7 @@ namespace SPA.PQL.Parser {
 
         public static bool IsValidLiteral(string expression)
         {
-            return Regex.IsMatch(expression, "^\"[a-zA-Z][a-zA-Z0-9#]\"$");
+            return Regex.IsMatch(expression, "^\"[a-zA-Z][a-zA-Z0-9#]*\"$");
         }
 
         public static RelationType? ParseRelationName(string relationName)
