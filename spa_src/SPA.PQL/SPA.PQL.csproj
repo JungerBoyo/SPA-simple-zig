@@ -13,10 +13,24 @@
 
     <Target Name="CustomClean" AfterTargets="Clean">
         <Message Text="Cleaning up generated .cs file." Importance="high" />
-        <Delete Files="$(MSBuildProjectDirectory)\API\spa_api.cs" />
+        <RemoveDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetDirectoryName($(MSBuildProjectDirectory)))))\zig-out" />
     </Target>
 
     <ItemGroup>
-        <Compile Include="$(MSBuildProjectDirectory)\API\spa_api.cs" />
+        <Compile Include="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetDirectoryName($(MSBuildProjectDirectory)))))\src\spa_api.cs" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(OS)' == 'Windows' Or '$(OS)' == 'Windows_NT'">
+      <Content Include="..\..\zig-out\lib\simple-spa.dll">
+        <Link>simple-spa.dll</Link>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(OS)' == 'Unix'">
+        <Content Include="..\..\zig-out\lib\libsimple-spa.so.0.1.0">
+            <Link>libsimple-spa.so.0.1.0</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 </Project>
