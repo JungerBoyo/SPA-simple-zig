@@ -10,7 +10,6 @@ pub const Error = error {
 };
 
 const Entry = struct {
-    //node_ids: std.ArrayList(NodeId),
     value: []u8,
 };
 
@@ -57,6 +56,10 @@ pub fn tryInsert(self: *Self, value: []const u8) Error!ProcVarId {
 //pub fn addNodeId(self: *Self, index: ProcVarId, node_id: NodeId) void {
 //    self.table.items[index].node_ids.append(node_id);
 //}
+
+pub fn size(self: *Self) usize {
+    return self.table.items.len;
+}
 
 /// No bounds checking.
 pub fn getByIndex(self: *Self, index: ProcVarId) ?[]const u8 {

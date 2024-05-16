@@ -1,0 +1,164 @@
+const std = @import("std");
+
+pub const Node = @import("node.zig").Node;
+pub const NodeType = @import("node.zig").NodeType;
+pub const AST = @import("Ast.zig");
+
+const Self = @This();
+
+pub const Error = error {
+    PKB_OUT_OF_MEMORY,
+};
+
+ast: *AST,
+modifies_table: []std.DynamicBitSetUnmanaged,
+uses_table: []std.DynamicBitSetUnmanaged,
+
+arena_allocator: std.heap.ArenaAllocator,
+
+pub fn init(ast: *AST, internal_allocator: std.mem.Allocator) Error!*Self {
+    var self: *Self = internal_allocator.create(Self) catch
+        return error.PKB_OUT_OF_MEMORY;
+
+    self.ast = ast;
+    self.arena_allocator = std.heap.ArenaAllocator.init(internal_allocator);
+
+    self.modifies_table = self.arena_allocator.allocator().alloc(std.DynamicBitSetUnmanaged, self.ast.nodes.len) catch
+       return error.PKB_OUT_OF_MEMORY;
+    self.uses_table = self.arena_allocator.allocator().alloc(std.DynamicBitSetUnmanaged, self.ast.nodes.len) catch
+       return error.PKB_OUT_OF_MEMORY;
+
+    for (self.uses_table, self.modifies_table) |*uses_vector, *modifies_vector| {
+       uses_vector.* = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.var_table.size()) catch
+           return error.PKB_OUT_OF_MEMORY;
+       modifies_vector.* = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.var_table.size()) catch
+           return error.PKB_OUT_OF_MEMORY;
+    }
+
+    try self.build();
+
+    return self;
+}
+
+pub fn deinit(self: *Self) void {
+    self.ast.deinit();
+    self.arena_allocator.deinit();
+    self.arena_allocator.child_allocator.destroy(self);
+}
+
+fn setModifiesBit(self: *Self, node_index: usize, var_index: usize) void {
+    self.modifies_table[node_index].set(var_index);
+}
+fn setModifiesBitVector(self: *Self, src_node_index: usize, dst_node_index: usize) void {
+    self.modifies_table[dst_node_index].setUnion(self.modifies_table[src_node_index]);
+}
+fn getModifiesBitState(self: *Self, node_index: usize, var_index: usize) bool {
+    return self.modifies_table[node_index].isSet(var_index);
+}
+
+fn setUsesBit(self: *Self, node_index: usize, var_index: usize) void {
+    self.uses_table[node_index].set(var_index);
+}
+fn setUsesBitVector(self: *Self, src_node_index: usize, dst_node_index: usize) void {
+    self.uses_table[dst_node_index].setUnion(self.uses_table[src_node_index]);
+}
+fn getUsesBitState(self: *Self, node_index: usize, var_index: usize) bool {
+    return self.uses_table[node_index].isSet(var_index);
+}
+
+pub fn build(self: *Self) Error!void {
+    for (self.ast.nodes, 0..) |node, node_index| {
+        switch (node.type) {
+        .IF, .WHILE => {
+            const control_var = self.ast.nodes[node.children_index_or_lhs_child_index];
+            self.setUsesBit(node_index, control_var.value_id_or_const);
+        },
+        .ASSIGN => {
+            // may be redundant 
+            // First set all of the bits in ASSIGN node
+            self.setModifiesBit(node_index, node.value_id_or_const);
+            const node_child_count = node.children_count_or_rhs_child_index;
+            const node_child_index = node.children_index_or_lhs_child_index;
+            var i = node_child_index;
+            var tmp_node = node;
+            while (i > (node_child_index - node_child_count)) : (i -= 1) {
+                tmp_node = self.ast.nodes[@intCast(i)];
+                if (tmp_node.type == .VAR) {
+                    self.setUsesBit(node_index, node.value_id_or_const);
+                }
+            }
+        },
+        else => continue
+        }
+
+        // next propagate uses bit vector to the parent
+        const parent_index = self.ast.findParent(@intCast(node_index));
+        self.setModifiesBitVector(node_index, parent_index);
+        self.setUsesBitVector(node_index, parent_index);
+        // next propagate modifies bit to all procedures which call
+        // procedure in which assign is called (may be redundant)
+        const proc_parent_index = self.ast.findParentProcedure(@intCast(node_index));
+        const proc_parent_node = self.ast.nodes[proc_parent_index];
+        const proc_parent_id = proc_parent_node.value_id_or_const;
+        self.setModifiesBitVector(node_index, proc_parent_index);
+        self.setUsesBitVector(node_index, proc_parent_index);
+
+        var current_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
+            return error.PKB_OUT_OF_MEMORY;
+        defer current_proc_vector.deinit(self.arena_allocator.allocator());
+
+        current_proc_vector.set(proc_parent_id);
+
+        var new_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
+            return error.PKB_OUT_OF_MEMORY;
+        defer current_proc_vector.deinit(self.arena_allocator.allocator());
+
+        while (current_proc_vector.findFirstSet()) |_| {
+            new_proc_vector.unsetAll();
+            for (self.ast.proc_map.map.items, 0..) |*item, proc_id| {
+                var tmp_proc_vector = current_proc_vector.clone(self.arena_allocator.allocator()) catch
+                    return error.PKB_OUT_OF_MEMORY;
+                defer tmp_proc_vector.deinit(self.arena_allocator.allocator());
+
+                tmp_proc_vector.setIntersection(item.calls);
+                if (tmp_proc_vector.findFirstSet()) |_| {
+                    new_proc_vector.set(proc_id);
+                    self.setModifiesBitVector(node_index, item.node_index);
+                    self.setUsesBitVector(node_index, proc_parent_index);
+                }
+            }
+            std.mem.swap(std.DynamicBitSetUnmanaged, &current_proc_vector, &new_proc_vector);
+        }
+    }
+    for (self.ast.nodes, 0..) |node, node_index| {
+        if (node.type == .CALL) {
+            const proc_node_index = self.ast.proc_map.get(node.value_id_or_const).node_index;
+            self.setUsesBitVector(proc_node_index, node_index);
+            self.setModifiesBitVector(proc_node_index, node_index);
+        }
+    }
+}
+//
+//    pub fn deinit(self: *Self) void {
+//        self.arena_allocator.deinit();
+//        self.arena_allocator.child_allocator.destroy(self);
+//    }
+//
+//    pub const RefQueryArg = union(enum) {
+//        node_id: u32,
+//        proc_name: []const u8,
+//    };
+//    pub fn modifies(self: *Self,
+//        result_writer: std.io.FixedBufferStream([]u8).Writer,
+//        ref_query_arg: RefQueryArg, var_name: ?[]const u8,
+//    ) !u32 {
+//        switch(ref_query_arg) {
+//        RefQueryArg.node_id => {
+//        },
+//        RefQueryArg.proc_name => {
+//        },
+//        RefQueryArg.undef => {
+//        },
+//        }
+//    }
+

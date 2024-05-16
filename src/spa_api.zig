@@ -9,15 +9,19 @@ const NodeMetadata      = @import("node.zig").NodeMetadata;
 const ERR_BUFFER_SIZE = 1024;
 const RESULT_BUFFER_SIZE = 8192;
 
-const ASTParser = @import("AstParser.zig").AstParser(std.io.FixedBufferStream([]u8).Writer, c_uint);
+const ASTParser = @import("AstParser.zig").AstParser(std.io.FixedBufferStream([]u8).Writer);
 const Tokenizer = @import("Tokenizer.zig").Tokenizer(std.io.FixedBufferStream([]u8).Writer);
-const AST = ASTParser.AST;
+const AST = @import("Ast.zig");
+const Pkb = @import("Pkb.zig");
+const ApiCommon = @import("spa_api_common.zig");
+const ProcMap = @import("ProcMap.zig");
+
+const api = struct {
+    usingnamespace @import("follows_api.zig").FollowsApi(c_uint);
+    usingnamespace @import("parent_api.zig").ParentApi(c_uint);
+};
 
 const allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-
-const SpaInstance = struct {
-    ast: *AST
-};
 
 var error_buffer: [ERR_BUFFER_SIZE:0]u8 = .{0} ** ERR_BUFFER_SIZE;
 var error_buffer_stream = std.io.fixedBufferStream(error_buffer[0..]);
@@ -29,31 +33,7 @@ var result_buffer_size: u32 = 0;
 
 var error_code: c_uint = 0;
 
-var instance: ?SpaInstance = null;
-
-fn makeInstance(simple_src_file_path: [*:0]const u8) Error!SpaInstance {
-    if (instance) |value| {
-        value.ast.deinit();
-    }
-
-    const file = std.fs.cwd().openFileZ(simple_src_file_path, .{ .mode = .read_only }) catch {
-        error_buffer_stream.writer().print("Failed to open file at {s}.", .{simple_src_file_path}) catch unreachable;
-        return Error.SIMPLE_FILE_OPEN_ERROR;
-    };
-    defer file.close();
-
-    var tokenizer = try Tokenizer.init(std.heap.page_allocator, error_buffer_stream.writer());
-
-    try tokenizer.tokenize(file.reader());
-    defer tokenizer.deinit();
-
-    var parser = try ASTParser.init(std.heap.page_allocator, tokenizer.tokens.items[0..], error_buffer_stream.writer());
-    defer parser.deinit();
-
-    const ast = try parser.parse();
-
-    return .{ .ast = ast };
-}
+var instance: ?*Pkb = null;
 
 pub const NodeC = extern struct {
     type: c_uint = 0,
@@ -61,7 +41,6 @@ pub const NodeC = extern struct {
     line_no: c_int = 0,
     column_no: c_int = 0,
 };
-
 
 // Returns metadata of node which has an id <id>. In case of failure,
 // returns zeroed out node metadata and sets error code.
@@ -163,40 +142,6 @@ pub export fn GetResultSize() callconv(.C) c_uint {
     return result_buffer_size;
 }
 
-fn execRelation(
-    func: *const fn(*AST,
-        std.io.FixedBufferStream([]u8).Writer,
-        NodeType, u32, ?[]const u8,
-        NodeType, u32, ?[]const u8
-    ) anyerror!u32,
-    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
-    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
-) [*c]c_uint {
-    if (instance) |value| {
-        result_buffer_size = func(value.ast,
-            result_buffer_stream.writer(),
-            @enumFromInt(@as(u32, s1_type)),
-            @intCast(s1),
-            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
-            @enumFromInt(@as(u32, s2_type)),
-            @intCast(s2),
-            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
-        ) catch |e| {
-            if (e == error.UNSUPPORTED_COMBINATION) {
-                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
-            } else {
-                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
-            }
-
-            return 0x0;
-        };
-        result_buffer_stream.reset();
-        return @alignCast(@ptrCast(result_buffer[0..].ptr));
-    } else {
-        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
-    }
-    return 0x0;
-}
 // Follows relation. As parameters, takes statement type, id 
 // (statement id not node id!!!) and value which is explained in 
 // GetNodeValue. Important notes: 
@@ -223,7 +168,7 @@ pub export fn Follows(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(AST.follows,
+    return execRelation(api.follows,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -237,7 +182,7 @@ pub export fn FollowsTransitive(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(AST.followsTransitive,
+    return execRelation(api.followsTransitive,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -251,7 +196,7 @@ pub export fn Parent(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(AST.parent,
+    return execRelation(api.parent,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -265,7 +210,7 @@ pub export fn ParentTransitive(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(AST.parentTransitive,
+    return execRelation(api.parentTransitive,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -276,7 +221,7 @@ pub const Error = error{
     NODE_ID_OUT_OF_BOUNDS,
     TRIED_TO_USE_EMPTY_INSTANCE,
     UNDEFINED
-} || Tokenizer.Error || ASTParser.Error || AST.Error;
+} || Tokenizer.Error || ASTParser.Error || ApiCommon.Error || Pkb.Error || ProcMap.Error;
 
 pub const ErrorEnum = enum(u32) {
     OK = 0,
@@ -289,6 +234,8 @@ pub const ErrorEnum = enum(u32) {
     UNEXPECTED_CHAR,
     PROC_VAR_TABLE_OUT_OF_MEMORY,
     PARSER_OUT_OF_MEMORY,
+    PROC_MAP_OUT_OF_MEMORY,
+    PKB_OUT_OF_MEMORY,
     INT_OVERFLOW,
     NO_MATCHING_RIGHT_PARENTHESIS,
     WRONG_FACTOR,
@@ -315,3 +262,63 @@ pub fn errorToEnum(err: Error) ErrorEnum {
         inline else => |e| @field(ErrorEnum, @errorName(e)),
     };
 }
+
+fn execRelation(
+    func: *const fn(*Pkb,
+        std.io.FixedBufferStream([]u8).Writer,
+        NodeType, u32, ?[]const u8,
+        NodeType, u32, ?[]const u8
+    ) anyerror!u32,
+    s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
+    s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
+) [*c]c_uint {
+    if (instance) |value| {
+        result_buffer_size = func(value,
+            result_buffer_stream.writer(),
+            @enumFromInt(@as(u32, s1_type)),
+            @intCast(s1),
+            if (std.mem.len(s1_value) > 0) s1_value[0..std.mem.len(s1_value)] else null,
+            @enumFromInt(@as(u32, s2_type)),
+            @intCast(s2),
+            if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
+            }
+
+            return 0x0;
+        };
+        result_buffer_stream.reset();
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
+    }
+    return 0x0;
+}
+
+fn makeInstance(simple_src_file_path: [*:0]const u8) Error!*Pkb {
+    if (instance) |value| {
+        value.ast.deinit();
+    }
+
+    const file = std.fs.cwd().openFileZ(simple_src_file_path, .{ .mode = .read_only }) catch {
+        error_buffer_stream.writer().print("Failed to open file at {s}.", .{simple_src_file_path}) catch unreachable;
+        return Error.SIMPLE_FILE_OPEN_ERROR;
+    };
+    defer file.close();
+
+    var tokenizer = try Tokenizer.init(std.heap.page_allocator, error_buffer_stream.writer());
+
+    try tokenizer.tokenize(file.reader());
+    defer tokenizer.deinit();
+
+    var parser = try ASTParser.init(std.heap.page_allocator, tokenizer.tokens.items[0..], error_buffer_stream.writer());
+    defer parser.deinit();
+
+    const ast = try parser.parse();
+
+    return try Pkb.init(ast, std.heap.page_allocator);
+}
+

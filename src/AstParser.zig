@@ -7,15 +7,17 @@ const NodeType          = @import("node.zig").NodeType;
 const NodeMetadata      = @import("node.zig").NodeMetadata;
 
 const ProcVarTable = @import("ProcVarTable.zig");
+const ProcMap = @import("ProcMap.zig");
 
-pub fn AstParser(comptime ErrWriter: type, comptime AstResultIntType: type) type { return struct {
+const AST = @import("Ast.zig");
 
-pub const AST = @import("Ast.zig").Ast(AstResultIntType);
+pub fn AstParser(comptime ErrWriter: type) type { return struct {
 
 const Self = @This();
 
 pub const Error = 
     ProcVarTable.Error || 
+    ProcMap.Error ||
     error { PARSER_OUT_OF_MEMORY, INT_OVERFLOW } ||
     ExpressionParseError ||
     AssignmentParseError || 
@@ -42,6 +44,7 @@ current_parent_index: u32 = 0,
 
 var_table: *ProcVarTable,
 proc_table: *ProcVarTable,
+proc_map: *ProcMap,
 
 fn setDefaults(self: *Self) void {
     self.root = .{ .type = .PROGRAM };
@@ -69,6 +72,7 @@ pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token, err_log_writ
 
     self.var_table = try ProcVarTable.init(internal_allocator);
     self.proc_table = try ProcVarTable.init(internal_allocator);
+    self.proc_map = try ProcMap.init(internal_allocator);
 
     return self;
 }
@@ -359,6 +363,7 @@ fn parseProcedure(self: *Self) Error!void {
                 .value_id_or_const = try self.proc_table.tryInsert(name_token.value.?),
                 .metadata = self.getNodeMetadata(&name_token, 0)
             }) catch return Error.PARSER_OUT_OF_MEMORY;
+            
             try self.wrapInLevel(parseStatementList);
         } else {
             self.onError("Procedure declaration must contain procedure name.");
@@ -454,8 +459,14 @@ pub fn parse(self: *Self) Error!*AST {
         flattened_tree_size += level.items.len;
     }
 
+    // fill out proc map (lvl 1 is filled only with procedures)
+    try self.proc_map.resize(self.levels.items[0].items.len);
+    for (0..(self.levels.items[0].items.len)) |i| {
+        try self.proc_map.add(@intCast(i), @intCast(i+1));
+    }
+
     var ast = AST.init(
-        self.arena_allocator.child_allocator, flattened_tree_size, self.current_statement, self.var_table, self.proc_table) catch
+        self.arena_allocator.child_allocator, flattened_tree_size, self.current_statement, self.var_table, self.proc_table, self.proc_map) catch
         return Error.PARSER_OUT_OF_MEMORY;
 
     ast.nodes[0] = self.root;
@@ -466,7 +477,7 @@ pub fn parse(self: *Self) Error!*AST {
     const expression_region_offset = flattened_tree_size - self.expression_level.items.len;
     var i_nodes: usize = 1;
     var i_expressions: usize = expression_region_offset;
-
+    
     for (self.levels.items) |*level| {
         const old_level_offset = level_offset;
         defer previous_level_offset = old_level_offset;
@@ -476,7 +487,8 @@ pub fn parse(self: *Self) Error!*AST {
             // recognize expression
             if (node.type == .ASSIGN) {
                 ast.nodes[i_nodes].parent_index += @intCast(previous_level_offset);
-                ast.nodes[i_nodes].children_index_or_lhs_child_index += @intCast(expression_region_offset);
+                ast.nodes[i_nodes].children_index_or_lhs_child_index = 
+                    @intCast(i_expressions + node.children_count_or_rhs_child_index - 1);
                 for (
                     self.expression_level.items[(node.children_index_or_lhs_child_index - (node.children_count_or_rhs_child_index - 1))..(node.children_index_or_lhs_child_index + 1)],
                     ast.nodes[i_expressions..(i_expressions+node.children_count_or_rhs_child_index)]
@@ -488,11 +500,10 @@ pub fn parse(self: *Self) Error!*AST {
                     if (dst_expr_node.type != .VAR and dst_expr_node.type != .CONST) {
                         dst_expr_node.children_index_or_lhs_child_index += @intCast(expression_region_offset);
                         dst_expr_node.children_count_or_rhs_child_index += @intCast(expression_region_offset);
+                    } else {
+                        dst_expr_node.children_index_or_lhs_child_index = 0;
+                        dst_expr_node.children_count_or_rhs_child_index = 0;
                     }
-                    //if (dst_expr_node.value) |*value| {
-                    //    value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
-                    //        return Error.PARSER_OUT_OF_MEMORY;
-                    //}
                 }
                 ast.nodes[ast.nodes[i_nodes].children_index_or_lhs_child_index].parent_index = @intCast(i_nodes);
                 i_expressions += node.children_count_or_rhs_child_index;
@@ -502,17 +513,22 @@ pub fn parse(self: *Self) Error!*AST {
                     ast.nodes[i_nodes].children_index_or_lhs_child_index += @intCast(level_offset);
                 }
             }
-            //if (ast.nodes[i_nodes].value) |*value| {
-            //    value.* = ast.arena_allocator.allocator().dupe(u8, value.*) catch
-            //        return Error.PARSER_OUT_OF_MEMORY;
-            //}
-            if(node.metadata.statement_id != 0) {
+            if (node.metadata.statement_id != 0) {
                 ast.statement_map[node.metadata.statement_id] = i_nodes;
+            }
+
+            if (node.type == .CALL) {
+                const parent_proc_index = ast.findParentProcedure(@intCast(i_nodes));
+                const parent_proc_node = ast.nodes[parent_proc_index];
+                self.proc_map.setCalls(parent_proc_node.value_id_or_const, node.value_id_or_const);
             }
 
             i_nodes += 1;
         }
     }
+
+    // TODO przenieść to gdzieś
+    //
 
     return ast;
 }
