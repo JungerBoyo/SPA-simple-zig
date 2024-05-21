@@ -7,11 +7,26 @@ using SPA.PQL.Parser;
 namespace SPA.PQL;
 
 public sealed class PQLEvaluator : IDisposable {
+    private static readonly PQLEvaluatorOptions DefaultOptions = new PQLEvaluatorOptions();
     private readonly IPKBInterface _pkbApi;
     private readonly PQLQuery _query;
+    private readonly PQLEvaluatorOptions _options;
+    
+    private List<PQLBaseCondition>? _freeConditions = null;
 
     public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi)
     {
+        _options = DefaultOptions;
+        _pkbApi = pkbApi;
+        var parser = new PQLParser();
+        _query = parser.Parse(pqlQuery);
+    }
+
+    public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi, Action<PQLEvaluatorOptions> options)
+    {
+        _options = new PQLEvaluatorOptions();
+        options.Invoke(_options);
+
         _pkbApi = pkbApi;
         var parser = new PQLParser();
         _query = parser.Parse(pqlQuery);
@@ -26,7 +41,17 @@ public sealed class PQLEvaluator : IDisposable {
     {
         var programElements = _pkbApi.Init(simpleProgramFilePath);
 
-        //RemoveFreeVariables();
+        if (_options.RemoveFreeVariables)
+        {
+            RemoveFreeVariables();
+        }
+
+        if (_options.BuildEvaluationTree)
+        {
+            _freeConditions = new List<PQLBaseCondition>();
+
+            BuildEvaluationTree();
+        }
 
         var loadedVariables = InitVariables(programElements).ToList();
         var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
@@ -38,7 +63,7 @@ public sealed class PQLEvaluator : IDisposable {
         if (_query.QueryResult.IsBooleanResult)
         {
             return new BooleanQueryResult(compiledRelations,
-                [ loadedVariables.All(x => x.Elements.Count > 0) ]);
+                [loadedVariables.All(x => x.Elements.Count > 0)]);
         }
 
         if (_query.QueryResult.VariableNames.Length == 1)
@@ -47,13 +72,24 @@ public sealed class PQLEvaluator : IDisposable {
                 .First(x => x.VariableName == _query.QueryResult.VariableNames[0]).Elements
                 .Select(x => x.StatementNumber)
                 .ToList();
-                
+
             return new VariableQueryResult(compiledRelations, data);
         }
 
         //TODO: Implement tuple return type
 
         return null!;
+    }
+
+    private void BuildEvaluationTree()
+    {
+        
+    }
+
+    private void RemoveFreeVariables()
+    {
+        var usedVariables = _query.QueryResult.VariableNames.Union(_query.Conditions.SelectMany(x => x.GetNamesOfVariablesUsed())).ToList();
+        _query.Variables.RemoveAll(x => !usedVariables.Contains(x.Name));
     }
 
     private IEnumerable<EvaluatedVariable> InitVariables(List<ProgramElement> elements)

@@ -22,7 +22,16 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
     {
         throw new NotImplementedException();
     }
+
+    public override IEnumerable<string> GetNamesOfVariablesUsed()
+    {
+        if (LeftReference.Type is PQLWithConditionReferenceType.Metadata or PQLWithConditionReferenceType.Variable)
+            yield return LeftReference.VariableName!;
         
+        if (RightReference.Type is PQLWithConditionReferenceType.Metadata or PQLWithConditionReferenceType.Variable)
+            yield return RightReference.VariableName!;
+    }
+
     private static void ValidateReference(PQLWithConditionReference reference, 
         PQLQuery query,
         PQLQueryValidationResult result)

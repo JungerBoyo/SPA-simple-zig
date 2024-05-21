@@ -60,6 +60,15 @@ namespace SPA.PQL.QueryElements {
             }
         }
 
+        public override IEnumerable<string> GetNamesOfVariablesUsed()
+        {
+            if (LeftReference.Type is PQLSuchThatConditionReferenceType.Variable)
+                yield return LeftReference.VariableName!;
+            
+            if (RightReference.Type is PQLSuchThatConditionReferenceType.Variable)
+                yield return RightReference.VariableName!;
+        }
+
         public void EvaluateParent(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
         {
             EvaluateRelation(pkbApi, variables, (pkbApi, leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber) 
