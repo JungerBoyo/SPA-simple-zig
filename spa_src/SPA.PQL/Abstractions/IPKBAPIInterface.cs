@@ -26,7 +26,7 @@ namespace SPA.PQL.Abstractions {
             uint i = 0;
             while(true)
             {
-                var temp = SpaApi.GetNodeMetadata(i);
+                var temp = SpaApi.GetNode(i);
                 
                 if(temp.type == 0)
                     break;
