@@ -44,6 +44,7 @@ fn refProcDefVar(pkb: *Pkb,
     } else {
         return error.PROC_NOT_FOUND;
     }
+    return 0;
 }
 
 fn refProcSelVar(pkb: *Pkb,
@@ -103,7 +104,7 @@ fn refUndefNodeSelVar(pkb: *Pkb,
     result_writer: std.io.FixedBufferStream([]u8).Writer,
 ) !u32 {
     var result: u32 = 0;
-    for (pkb.ast.var_table, 0..) |_, i| {
+    for (pkb.ast.var_table.table.items, 0..) |_, i| {
         result += 1;
         try result_writer.writeInt(ResultIntType, @as(ResultIntType, @intCast(i)), .little);
     }
@@ -123,6 +124,7 @@ fn refDefNodeDefVar(pkb: *Pkb,
     } else {
         return error.VAR_NOT_FOUND;
     }
+    return 0;
 }
 fn refDefNodeSelVar(pkb: *Pkb,
     table: []std.DynamicBitSetUnmanaged,

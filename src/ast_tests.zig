@@ -12,6 +12,8 @@ const AST = @import("Ast.zig");
 const Pkb = @import("Pkb.zig");
 const common = @import("spa_api_common.zig");
 
+const RefQueryArg = common.RefQueryArg;
+
 const api = struct {
     usingnamespace @import("follows_api.zig").FollowsApi(u32);
     usingnamespace @import("parent_api.zig").ParentApi(u32);
@@ -49,6 +51,25 @@ fn checkExecute(
             stream.writer(), 
             s1_type, s1, s1_value,
             s2_type, s2, s2_value,
+        )
+    );
+    stream.reset();
+}
+fn checkExecute2(
+    pkb: *Pkb,
+    func_ptr: *const fn(pkb: *Pkb,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+        ref_query_arg: RefQueryArg, var_name: ?[]const u8,
+    ) anyerror!u32,
+    stream: *std.io.FixedBufferStream([]u8),
+    ref_query_arg: RefQueryArg, var_name: ?[]const u8,
+    expected: u32,
+) !void {
+    try std.testing.expectEqual(
+        expected, 
+        try func_ptr(pkb,
+            stream.writer(), 
+            ref_query_arg, var_name
         )
     );
     stream.reset();
@@ -376,4 +397,150 @@ test "parent*" {
     try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "i", 2);
     try checkResult(pkb, result_buffer[0..4], 8, true);
     try checkResult(pkb, result_buffer[4..8], 10, true);
+}
+
+
+test "modifies" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  if x then {
+    \\      x = x + 1;
+    \\      while i {
+    \\          x = x + 2 * y;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { 
+    \\              i = 1; 
+    \\          } else {
+    \\              y = 2;
+    \\          }
+    \\      }
+    \\  } else {
+    \\      z = 1;
+    \\  }
+    \\  z = z + x + i;
+    \\  y = z + 2;
+    \\  x = x * y + z;
+    \\}
+    \\procedure Third {
+    \\  j = 1;
+    \\}
+    ;
+
+    var pkb = try getPkb(simple[0..]);
+    defer pkb.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+    
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "x", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "i", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "y", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "z", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "j", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "j", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "x", 0);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "y", 0);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "i", 0);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "z", 0);
+
+
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(1)) }, "x", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "x", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "i", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "y", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "i", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "y", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "i", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+}
+
+
+test "uses" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  if s then {
+    \\      x = 1 + b;
+    \\      while i {
+    \\          x = 2 * y + m;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { 
+    \\              i = 1; 
+    \\          } else {
+    \\              y = 2 + n;
+    \\          }
+    \\      }
+    \\  } else {
+    \\      z = 1 + h;
+    \\  }
+    \\  z = z + i;
+    \\  y = z + 2;
+    \\  x = y + z + t;
+    \\}
+    \\procedure Third {
+    \\  j = 1 + k;
+    \\}
+    ;
+
+    var pkb = try getPkb(simple[0..]);
+    defer pkb.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+    
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "b", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "m", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "n", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "h", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "t", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "x", 0);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "k", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+
+
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "k", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "j", 0);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "y", 0);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "i", 0);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "z", 0);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "m", 0);
+
+
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(4)) }, "b", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "b", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "m", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "x", 0);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "i", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "n", 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y", 0);
 }

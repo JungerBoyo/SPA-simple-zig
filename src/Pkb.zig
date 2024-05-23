@@ -84,21 +84,29 @@ pub fn build(self: *Self) Error!void {
             while (i > (node_child_index - node_child_count)) : (i -= 1) {
                 tmp_node = self.ast.nodes[@intCast(i)];
                 if (tmp_node.type == .VAR) {
-                    self.setUsesBit(node_index, node.value_id_or_const);
+                    self.setUsesBit(node_index, tmp_node.value_id_or_const);
                 }
             }
         },
         else => continue
         }
 
-        // next propagate uses bit vector to the parent
-        const parent_index = self.ast.findParent(@intCast(node_index));
-        self.setModifiesBitVector(node_index, parent_index);
-        self.setUsesBitVector(node_index, parent_index);
+        // next propagate uses bit vector to parents until it is not a procedure
+        var parent_index = self.ast.findParent(@intCast(node_index));
+        var parent_node = self.ast.nodes[parent_index];
+        while (parent_node.type != .PROCEDURE) {
+            if (parent_node.type == .IF or parent_node.type == .WHILE) {
+                self.setModifiesBitVector(node_index, parent_index);
+                self.setUsesBitVector(node_index, parent_index);
+            }
+            parent_index = self.ast.findParent(@intCast(parent_index));
+            parent_node = self.ast.nodes[parent_index];
+        }
+
         // next propagate modifies bit to all procedures which call
         // procedure in which assign is called (may be redundant)
-        const proc_parent_index = self.ast.findParentProcedure(@intCast(node_index));
-        const proc_parent_node = self.ast.nodes[proc_parent_index];
+        const proc_parent_index = parent_index;
+        const proc_parent_node = parent_node;
         const proc_parent_id = proc_parent_node.value_id_or_const;
         self.setModifiesBitVector(node_index, proc_parent_index);
         self.setUsesBitVector(node_index, proc_parent_index);
@@ -124,7 +132,7 @@ pub fn build(self: *Self) Error!void {
                 if (tmp_proc_vector.findFirstSet()) |_| {
                     new_proc_vector.set(proc_id);
                     self.setModifiesBitVector(node_index, item.node_index);
-                    self.setUsesBitVector(node_index, proc_parent_index);
+                    self.setUsesBitVector(node_index,  item.node_index);
                 }
             }
             std.mem.swap(std.DynamicBitSetUnmanaged, &current_proc_vector, &new_proc_vector);

@@ -19,6 +19,7 @@ const ProcMap = @import("ProcMap.zig");
 const api = struct {
     usingnamespace @import("follows_api.zig").FollowsApi(c_uint);
     usingnamespace @import("parent_api.zig").ParentApi(c_uint);
+    usingnamespace @import("uses_modifies_api.zig").UsesModifiesApi(c_uint);
 };
 
 const allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -37,6 +38,7 @@ var instance: ?*Pkb = null;
 
 pub const NodeC = extern struct {
     type: c_uint = 0,
+    value_id: c_uint = 0,
     statement_id: c_uint = 0,
     line_no: c_int = 0,
     column_no: c_int = 0,
@@ -44,12 +46,13 @@ pub const NodeC = extern struct {
 
 // Returns metadata of node which has an id <id>. In case of failure,
 // returns zeroed out node metadata and sets error code.
-pub export fn GetNodeMetadata(id: c_uint) callconv(.C) NodeC {
+pub export fn GetNode(id: c_uint) callconv(.C) NodeC {
     if (instance) |value| {
         if (id < value.ast.nodes.len) {
             const node = value.ast.nodes[@intCast(id)];
             return .{
                 .type = @intFromEnum(node.type),
+                .value_id = @intCast(node.value_id_or_const),
                 .statement_id = @intCast(node.metadata.statement_id),
                 .line_no = @intCast(node.metadata.line_no),
                 .column_no = @intCast(node.metadata.column_no)
@@ -63,30 +66,32 @@ pub export fn GetNodeMetadata(id: c_uint) callconv(.C) NodeC {
     return .{};
 }
 
-// Returns node's value. Eg. in case of assign statement value
-// will be the name of the variable, and in case of procedure value
-// is going to be procedure name and so on. In case of failure,
-// return empty string and sets error code.
-pub export fn GetNodeValue(id: c_uint) callconv(.C) [*:0]const u8 {
+// Returns proc name of id specified in Node structure.
+pub export fn GetProcName(proc_id: c_uint) callconv(.C) [*:0]const u8 {
     if (instance) |value| {
-        if (id < value.ast.nodes.len) {
-            const node = value.ast.nodes[@intCast(id)];
-            if (node.type == .ASSIGN or node.type == .VAR) {
-                if (value.ast.var_table.getByIndex(node.value_id_or_const)) |str| {
-                    _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
-                    _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
-                    return @ptrCast(result_buffer[0..].ptr);
-                }
-            }
-            if (node.type == .PROCEDURE or node.type == .CALL) {
-                if (value.ast.proc_table.getByIndex(node.value_id_or_const)) |str| {
-                    _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
-                    _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
-                    return @ptrCast(result_buffer[0..].ptr);
-                }
-            }
+        if (value.ast.proc_table.getByIndex(proc_id)) |str| {
+            _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
+            _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+            return @ptrCast(result_buffer[0..].ptr);
         } else {
-            error_code = @intFromEnum(ErrorEnum.NODE_ID_OUT_OF_BOUNDS);
+            error_code = @intFromEnum(ErrorEnum.PROC_ID_OUT_OF_BOUNDS);
+        }
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
+    }
+    result_buffer[0] = 0;
+    return @ptrCast(result_buffer[0..].ptr);
+}
+
+// Returns var name of id specified in Node structure.
+pub export fn GetVarName(var_id: c_uint) callconv(.C) [*:0]const u8 {
+    if (instance) |value| {
+        if (value.ast.var_table.getByIndex(var_id)) |str| {
+            _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
+            _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+            return @ptrCast(result_buffer[0..].ptr);
+        } else {
+            error_code = @intFromEnum(ErrorEnum.VAR_ID_OUT_OF_BOUNDS);
         }
     } else {
         error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
@@ -141,6 +146,29 @@ pub export fn GetResultSize() callconv(.C) c_uint {
     defer result_buffer_size = 0;
     return result_buffer_size;
 }
+
+// Gets Ast size
+pub export fn GetAstSize() callconv(.C) c_uint {
+    if (instance) |pkb| {
+        return @intCast(pkb.ast.nodes.len);
+    }
+    return 0;
+}
+// Gets proc table size
+pub export fn GetProcTableSize() callconv(.C) c_uint {
+    if (instance) |pkb| {
+        return @intCast(pkb.ast.proc_table.table.items.len);
+    }
+    return 0;
+}
+// Gets var table size
+pub export fn GetVarTableSize() callconv(.C) c_uint {
+    if (instance) |pkb| {
+        return @intCast(pkb.ast.var_table.table.items.len);
+    }
+    return 0;
+}
+
 
 // Follows relation. As parameters, takes statement type, id 
 // (statement id not node id!!!) and value which is explained in 
@@ -215,10 +243,35 @@ pub export fn ParentTransitive(
         s2_type, s2, s2_value,
     );
 }
+
+pub export fn ModifiesProc(proc_name: [*:0]const u8, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
+    return execRelation2(api.modifies,
+        .{ .proc_name = proc_name[0..std.mem.len(proc_name)] },
+        var_name
+    );
+}
+pub export fn Modifies(node_id: c_uint, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
+    return execRelation2(api.modifies, .{ .node_id = node_id }, var_name );
+}
+
+pub export fn UsesProc(proc_name: [*:0]const u8, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
+    return execRelation2(api.uses,
+        .{ .proc_name = proc_name[0..std.mem.len(proc_name)] },
+        var_name
+    );
+}
+pub export fn Uses(node_id: c_uint, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
+    return execRelation2(api.uses, .{ .node_id = node_id }, var_name );
+}
+
+
+
 pub const Error = error{ 
     SIMPLE_FILE_OPEN_ERROR, 
     TRIED_TO_DEINIT_EMPTY_INSTANCE,
     NODE_ID_OUT_OF_BOUNDS,
+    PROC_ID_OUT_OF_BOUNDS,
+    VAR_ID_OUT_OF_BOUNDS,
     TRIED_TO_USE_EMPTY_INSTANCE,
     UNDEFINED
 } || Tokenizer.Error || ASTParser.Error || ApiCommon.Error || Pkb.Error || ProcMap.Error;
@@ -228,6 +281,8 @@ pub const ErrorEnum = enum(u32) {
     SIMPLE_FILE_OPEN_ERROR,
     TRIED_TO_DEINIT_EMPTY_INSTANCE,
     NODE_ID_OUT_OF_BOUNDS,
+    PROC_ID_OUT_OF_BOUNDS,
+    VAR_ID_OUT_OF_BOUNDS,
     TRIED_TO_USE_EMPTY_INSTANCE,
     TOKENIZER_OUT_OF_MEMORY,
     SIMPLE_STREAM_READING_ERROR,
@@ -281,6 +336,34 @@ fn execRelation(
             @enumFromInt(@as(u32, s2_type)),
             @intCast(s2),
             if (std.mem.len(s2_value) > 0) s2_value[0..std.mem.len(s2_value)] else null,
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
+            }
+
+            return 0x0;
+        };
+        result_buffer_stream.reset();
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
+    }
+    return 0x0;
+}
+fn execRelation2(
+    func: *const fn(pkb: *Pkb,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+        ref_query_arg: ApiCommon.RefQueryArg, var_name: ?[]const u8,
+    ) anyerror!u32,
+    ref_query_arg: ApiCommon.RefQueryArg, var_name: [*:0]const u8,
+) [*c]c_uint {
+    if (instance) |value| {
+        result_buffer_size = func(value,
+            result_buffer_stream.writer(),
+            ref_query_arg,
+            if (std.mem.len(var_name) > 0) var_name[0..std.mem.len(var_name)] else null
         ) catch |e| {
             if (e == error.UNSUPPORTED_COMBINATION) {
                 error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));

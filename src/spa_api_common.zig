@@ -29,9 +29,6 @@ pub const RefQueryArg = union(enum) {
     proc_name: []const u8,
 
     pub fn hasProcName(self: RefQueryArg) bool {
-        return switch (self) {
-        self.node_id    => false,
-        self.proc_name  => true
-        };
+        return self == RefQueryArg.proc_name;
     }
 };
