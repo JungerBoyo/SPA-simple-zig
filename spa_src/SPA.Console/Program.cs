@@ -1,5 +1,6 @@
 ﻿using SPA.PQL;
 using SPA.PQL.Abstractions;
+using SPA.PQL.Evaluator;
 using static System.Console;
 
 const string simpleProgram = "procedure p {\nx=1;\nx = 1;\n}";

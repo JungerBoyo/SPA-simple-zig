@@ -59,7 +59,7 @@ namespace SPA.PQL.Parser {
 
         public static bool IsValidLiteral(string expression)
         {
-            return Regex.IsMatch(expression, "^\"[a-zA-Z][a-zA-Z0-9#]\"$");
+            return Regex.IsMatch(expression, "^\"[a-zA-Z][a-zA-Z0-9#]*\"$");
         }
 
         public static RelationType? ParseRelationName(string relationName)

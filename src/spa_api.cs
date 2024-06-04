@@ -121,7 +121,7 @@ public sealed class SpaApi {
 	/// relation funcitons). Upon return sets result buffer size to 0.
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
-	public static extern uint GetResultsSize();
+	public static extern uint GetResultSize();
 
 	/// <summary>
 	/// Gets AST size.

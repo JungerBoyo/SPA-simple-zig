@@ -1,10 +1,10 @@
 ﻿using SPA.PQL.Abstractions;
 using SPA.PQL.API;
 using SPA.PQL.Elements;
-using SPA.PQL.Evaluator;
+using SPA.PQL.Exceptions;
 using SPA.PQL.Parser;
 
-namespace SPA.PQL;
+namespace SPA.PQL.Evaluator;
 
 public sealed class PQLEvaluator : IDisposable {
     private static readonly PQLEvaluatorOptions DefaultOptions = new PQLEvaluatorOptions();
@@ -57,7 +57,17 @@ public sealed class PQLEvaluator : IDisposable {
         var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
         foreach (var condition in _query.Conditions)
         {
-            condition.Evaluate(_pkbApi, loadedVariables);
+            if (loadedVariables.Any(x => x.Elements.Count == 0)) break;
+            
+            try
+            {
+                condition.Evaluate(_pkbApi, loadedVariables);
+            }
+            catch (EvaluationException)
+            {
+                loadedVariables.ForEach(x => x.Elements.Clear());
+                break;
+            }
         }
 
         if (_query.QueryResult.IsBooleanResult)
