@@ -25,5 +25,9 @@
     <ItemGroup>
       <ProjectReference Include="..\SPA.PQL\SPA.PQL.csproj" />
     </ItemGroup>
-
+    <ItemGroup>
+        <Content Include="TestCodes\*.*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
 </Project>

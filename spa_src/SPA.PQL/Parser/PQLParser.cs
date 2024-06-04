@@ -10,7 +10,6 @@ namespace SPA.PQL.Parser {
     internal sealed class PQLParser {
         private readonly StringSplitOptions _tripOptions = StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries;
         internal const string SuchThatRegex = "such\\s+that";
-        internal const string That = "that";
         internal const string With = "with";
         internal const string Pattern = "pattern";
         private const string Select = "Select";
@@ -185,15 +184,6 @@ namespace SPA.PQL.Parser {
                 {
                     Type = PQLWithConditionReferenceType.TextValue,
                     TextValue = literal,
-                };
-            }
-
-            if (PQLParserHelper.IsValidVariableName(expression))
-            {
-                return new PQLWithConditionReference()
-                {
-                    Type = PQLWithConditionReferenceType.Variable,
-                    VariableName = expression,
                 };
             }
 

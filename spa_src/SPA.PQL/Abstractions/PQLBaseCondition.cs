@@ -6,5 +6,6 @@ namespace SPA.PQL.Abstractions {
         public abstract void Validate(PQLQuery query, PQLQueryValidationResult result);
 
         public abstract void Evaluate(IPKBInterface pkbApi, List<EvaluatedVariable> variables);
+        public abstract IEnumerable<string> GetNamesOfVariablesUsed();
     }
 }

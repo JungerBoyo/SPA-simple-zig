@@ -38,12 +38,16 @@ public sealed class SpaApi {
 		SIMPLE_FILE_OPEN_ERROR,
 		TRIED_TO_DEINIT_EMPTY_INSTANCE,
 		NODE_ID_OUT_OF_BOUNDS,
+		PROC_ID_OUT_OF_BOUNDS,
+		VAR_ID_OUT_OF_BOUNDS,
 		TRIED_TO_USE_EMPTY_INSTANCE,
 		TOKENIZER_OUT_OF_MEMORY,
 		SIMPLE_STREAM_READING_ERROR,
 		UNEXPECTED_CHAR,
 		PROC_VAR_TABLE_OUT_OF_MEMORY,
 		PARSER_OUT_OF_MEMORY,
+		PROC_MAP_OUT_OF_MEMORY,
+		PKB_OUT_OF_MEMORY,
 		INT_OVERFLOW,
 		NO_MATCHING_RIGHT_PARENTHESIS,
 		WRONG_FACTOR,
@@ -69,6 +73,7 @@ public sealed class SpaApi {
 	public struct NodeC
 	{
 		public uint type;
+		public uint value_id;
 		public uint statement_id;
 		public int line_no;
 		public int column_no;
@@ -116,14 +121,30 @@ public sealed class SpaApi {
 	/// relation funcitons). Upon return sets result buffer size to 0.
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
-	public static extern uint GetResultsSize();
+	public static extern uint GetResultSize();
+
+	/// <summary>
+	/// Gets AST size.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern uint GetAstSize();
+	/// <summary>
+	/// Gets proc_table size.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern uint GetProcTableSize();
+	/// <summary>
+	/// Gets var_table size.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern uint GetVarTableSize();
 	
 	/// <summary>
 	/// Returns metadata of node which has an id <id>. In case of failure,
 	/// returns zeroed out node metadata and sets error code.
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
-	public static extern NodeC GetNodeMetadata(uint id);
+	public static extern NodeC GetNode(uint id);
 
 	/// <summary>
 	/// Returns node's value. Eg. in case of assign statement value
@@ -134,6 +155,18 @@ public sealed class SpaApi {
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
 	public static extern IntPtr GetNodeValue(uint id);
+
+	/// <summary>
+	/// Returns var name of id specified in Node structure.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern IntPtr GetVarName(uint id);
+
+	/// <summary>
+	/// Returns proc name of id specified in Node structure.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern IntPtr GetProcName(uint id);
 
 	/// <summary>
 	/// Follows relation. As parameters, takes statement type, id 
@@ -186,7 +219,59 @@ public sealed class SpaApi {
 	/// GetNodeValue. Check 'Follows' comments for details.
 	/// In case of failure, returns NULL and sets error code. 
 	/// </summary>
-	
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
 	public static extern UIntPtr ParentTransitive(uint s1_type, uint s1, string s1_value, uint s2_type, uint s2, string s2_value);
+
+
+	/// <summary>
+	/// Modifies relation. As parameters, takes procedure name, and variable name
+	/// If variable name is empty it selects/outputs all variables modified by
+	/// procedure. 
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern UIntPtr ModifiesProc(string proc_name, string var_name);
+
+	/// <summary>
+	/// Modifies relation. As parameters, takes node_id, and variable name.
+	/// If node_id is 0 and var_name isn't empty selects/outputs all nodes 
+	/// which modify var_name.
+	/// If node_id is 0 and var_name is empty selects/outputs all nodes 
+	/// nodes modifing *something*.
+	/// If node_id is FF_FF_FF_FF and var_name is empty select all variables which
+	/// are modified by *anything*.
+	/// If node_id is in (0, FF_FF_FF_FF) and var_name is empty select all variables which
+	/// are modified by specified node.
+	/// If node_id is in (0, FF_FF_FF_FF) and var_name is empty select all variables which
+	/// are modified by specified node.
+	/// If node_id is in (0, FF_FF_FF_FF) and var_name isn't empty returns boolean 0/1 if relation
+	/// is true.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern UIntPtr Modifies(uint node_id, string var_name);
+
+	/// <summary>
+	/// Uses relation. As parameters, takes procedure name, and variable name
+	/// If variable name is empty it selects/outputs all variables modified by
+	/// procedure. 
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern UIntPtr UsesProc(string proc_name, string var_name);
+
+	/// <summary>
+	/// Uses relation. As parameters, takes node_id, and variable name.
+	/// If node_id is 0 and var_name isn't empty selects/outputs all nodes 
+	/// which use var_name.
+	/// If node_id is 0 and var_name is empty selects/outputs all nodes 
+	/// nodes using *something*.
+	/// If node_id is FF_FF_FF_FF and var_name is empty select all variables which
+	/// are used by *anything*.
+	/// If node_id is in (0, FF_FF_FF_FF) and var_name is empty select all variables which
+	/// are used by specified node.
+	/// If node_id is in (0, FF_FF_FF_FF) and var_name is empty select all variables which
+	/// are used by specified node.
+	/// If node_id is in (0, FF_FF_FF_FF) and var_name isn't empty returns boolean 0/1 if relation
+	/// is true.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern UIntPtr Uses(uint node_id, string var_name);
 }
