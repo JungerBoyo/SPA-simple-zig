@@ -14,6 +14,7 @@ namespace SPA.PQL.Abstractions {
         bool FollowsTransitive(uint s1_type, uint s1, uint s2_type, uint s2);
         string? GetVariableName(uint valueId);
         bool ModifiesProc(string procName, string varName);
+        string? GetProcedureName(uint valueId);
     }
 
     public sealed class PKBInterface : IPKBInterface {
@@ -85,7 +86,7 @@ namespace SPA.PQL.Abstractions {
         {
             if (s1_type == s2_type && s1 == s2)
                 return false;
-
+            
             var pointer = SpaApi.Follows(s1_type, s1, "", s2_type, s2, "");
 
             if (pointer == 0)
@@ -124,6 +125,13 @@ namespace SPA.PQL.Abstractions {
                 return false;
 
             return (uint)Marshal.ReadInt32(unchecked((IntPtr)(long)(ulong)pointer)) > 0 && SpaApi.GetResultSize() > 0;
+        }
+
+        public string? GetProcedureName(uint valueId)
+        {
+            var pointer = SpaApi.GetProcName(valueId);
+
+            return Marshal.PtrToStringAnsi(pointer);
         }
 
         public bool Uses(uint s1_type, uint s1, uint s2_type, uint s2)
