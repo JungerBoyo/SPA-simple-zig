@@ -32,7 +32,7 @@ namespace SPA.PQL.QueryElements {
             //TODO: Validate references based on RelationName
             if (Relation == RelationType.Calls)
             {
-                if(LeftReference)
+                //if(LeftReference)
             }
         }
 

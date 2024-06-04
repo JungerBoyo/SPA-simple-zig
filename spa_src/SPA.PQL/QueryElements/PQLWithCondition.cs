@@ -20,7 +20,7 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
 
     public override void Evaluate(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
     {
-        throw new NotImplementedException();
+        throw new NotImplementedException();    
     }
 
     public override IEnumerable<string> GetNamesOfVariablesUsed()
