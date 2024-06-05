@@ -8,9 +8,8 @@
     }
 
     internal enum PQLWithConditionReferenceType {
-        Variable = 1,
-        Metadata = 2,
-        TextValue = 3,
-        Integer = 4,
+        Metadata = 1,
+        TextValue = 2,
+        Integer = 3,
     }
 }
