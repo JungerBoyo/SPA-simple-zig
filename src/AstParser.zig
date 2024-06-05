@@ -527,9 +527,6 @@ pub fn parse(self: *Self) Error!*AST {
         }
     }
 
-    // TODO przenieść to gdzieś
-    //
-
     return ast;
 }
 

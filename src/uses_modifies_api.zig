@@ -21,10 +21,7 @@ pub fn UsesModifiesApi(comptime ResultIntType: type) type { return struct {
 
 const Self = @This();
 
-pub const Error = error {
-    PROC_NOT_FOUND,
-    VAR_NOT_FOUND,
-};
+pub const Error = common.Error;
 
 fn refProcDefVar(pkb: *Pkb,
     table: []std.DynamicBitSetUnmanaged,
