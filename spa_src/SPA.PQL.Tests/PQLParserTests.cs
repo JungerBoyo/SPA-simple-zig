@@ -340,4 +340,20 @@ public sealed class PQLParserTests {
         Assert.Equal(PQLWithConditionReferenceType.Integer, secondCondition.RightReference.Type);
         Assert.Equal(3, secondCondition.RightReference.IntValue);
     }
+
+    [Fact]
+    public void Should_Not_Return_Validation_Errors()
+    {
+        //prepare
+        var parser = new PQLParser();
+        var expression = "stmt a1, a2;Select <a1, a2> such that Parent*(_, a1) with a1.stmt# = 3";
+
+        //act
+        var query = parser.Parse(expression);
+
+        var validationResult = query.ValidateQuery();
+        
+        //assert
+        Assert.Empty(validationResult.Errors);
+    }
 }

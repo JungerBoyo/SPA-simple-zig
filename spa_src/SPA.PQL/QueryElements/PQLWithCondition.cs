@@ -148,7 +148,7 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
         {
             case PQLWithConditionReferenceType.Metadata:
                 CheckVariableDeclaration(query, result, reference.VariableName);
-                CheckMetadataName(result, reference.VariableName);
+                CheckMetadataName(result, reference.MetadataFieldName);
                 break;
         }
     }
