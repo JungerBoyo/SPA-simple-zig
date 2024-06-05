@@ -36,7 +36,7 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
         var leftValue = GetValue(LeftReference, leftVariable);
         var rightValue = GetValue(RightReference, rightVariable);
 
-        var result = new List<(uint left, uint right)>();
+        var result = new List<(ProgramElement? left, ProgramElement? right)>();
             
         if (leftCollection is not null && rightCollection is not null)
         {
@@ -46,13 +46,25 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
                 {
                     if (leftValue.Invoke(pkbApi, left.StatementNumber, left.ValueId) == rightValue.Invoke(pkbApi, right.StatementNumber, right.ValueId))
                     {
-                        result.Add((left.StatementNumber, right.StatementNumber));
+                        result.Add((left, right));
                     }
                 }
             }
 
-            leftVariable.Elements.RemoveAll(x => !result.Any(y => y.left == x.StatementNumber));
-            rightVariable.Elements.RemoveAll(x => !result.Any(y => y.right == x.StatementNumber));
+            foreach (var item in result)
+            {
+                var left = leftVariable?.Elements.FirstOrDefault(x => x.ProgramElement == item.left);
+                var right = rightVariable?.Elements.FirstOrDefault(x => x.ProgramElement == item.right);
+
+                if (left is not null && right is not null)
+                {
+                    left.Depends.Add(KeyValuePair.Create(leftVariable!, item.right!));
+                    right.Depends.Add(KeyValuePair.Create(rightVariable!, item.left!));
+                }
+            }
+            
+            leftVariable?.Elements.RemoveAll(x => !result.Any(y => y.left == x.ProgramElement));
+            rightVariable?.Elements.RemoveAll(x => !result.Any(y => y.right == x.ProgramElement));
         }
 
         if (leftCollection is not null && rightCollection is null)
@@ -61,11 +73,11 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
             {
                 if (leftValue.Invoke(pkbApi, left.StatementNumber, left.ValueId) == rightValue.Invoke(pkbApi, 0, 0))
                 {
-                    result.Add((left.StatementNumber, 0));
+                    result.Add((left, null));
                 }
             }
 
-            leftVariable.Elements.RemoveAll(x => !result.Any(y => y.left == x.StatementNumber));
+            leftVariable?.Elements.RemoveAll(x => !result.Any(y => y.left == x.ProgramElement));
         }
             
         if (leftCollection is null && rightCollection is not null)
@@ -74,11 +86,11 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
             {
                 if (leftValue.Invoke(pkbApi, 0, 0) == rightValue.Invoke(pkbApi, right.StatementNumber, right.ValueId))
                 {
-                    result.Add((0, right.StatementNumber));
+                    result.Add((null, right));
                 }
             }
 
-            rightVariable.Elements.RemoveAll(x => !result.Any(y => y.left == x.StatementNumber));
+            rightVariable?.Elements.RemoveAll(x => !result.Any(y => y.left == x.ProgramElement));
         }
 
         if (leftCollection is null && rightCollection is null)
@@ -125,7 +137,7 @@ internal sealed class PQLWithCondition : PQLBaseCondition {
         {
             variable = variables.First(x => x.VariableName == reference.VariableName);
 
-            return variable.Elements;
+            return variable.Elements.Select(x => x.ProgramElement).ToList();
         }
 
         return null;

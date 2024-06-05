@@ -73,6 +73,35 @@ namespace SPA.PQL.Tests {
                 
                 var result = evaluator.Evaluate(path);
                 Assert.IsType<VariableQueryResult>(result);
+                
+                var variableResult = (result as VariableQueryResult)!;
+                
+                Assert.NotEmpty(variableResult.BaseResults);
+                Assert.Contains(variableResult.BaseResults, x => x == 3);
+            }
+        }
+
+        [Fact]
+        public void Test5()
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "TestCodes/Test3.simple");
+
+            var simpleQuery = "assign a, b, c;Select a such that Follows(b, a) and Follows (c, b)";
+
+            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            {
+                var validationResult = evaluator.ValidateQuery();
+
+                Assert.Empty(validationResult.Errors);
+                
+                var result = evaluator.Evaluate(path);
+                Assert.IsType<VariableQueryResult>(result);
+                
+                var variableResult = (result as VariableQueryResult)!;
+                
+                Assert.NotEmpty(variableResult.BaseResults);
+                Assert.Single(variableResult.BaseResults);
+                Assert.Contains(variableResult.BaseResults, x => x == 4);
             }
         }
     }
