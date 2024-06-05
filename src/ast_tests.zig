@@ -18,6 +18,7 @@ const api = struct {
     usingnamespace @import("follows_api.zig").FollowsApi(u32);
     usingnamespace @import("parent_api.zig").ParentApi(u32);
     usingnamespace @import("uses_modifies_api.zig").UsesModifiesApi(u32);
+    usingnamespace @import("calls_api.zig").CallsApi(u32);
 };
 
 fn getPkb(simple_src: []const u8) !*Pkb {
@@ -33,7 +34,7 @@ fn getPkb(simple_src: []const u8) !*Pkb {
     return try Pkb.init(try parser.parse(), std.testing.allocator);
 }
 
-fn checkExecute(
+fn checkExecuteFollowsParent(
     pkb: *Pkb,
     func_ptr: *const fn(
         *Pkb, std.io.FixedBufferStream([]u8).Writer, 
@@ -55,7 +56,7 @@ fn checkExecute(
     );
     stream.reset();
 }
-fn checkExecute2(
+fn checkExecuteUsesModifies(
     pkb: *Pkb,
     func_ptr: *const fn(pkb: *Pkb,
     result_writer: std.io.FixedBufferStream([]u8).Writer,
@@ -74,6 +75,22 @@ fn checkExecute2(
     );
     stream.reset();
 }
+fn checkExecuteCalls(
+    pkb: *Pkb,
+    func_ptr: *const fn(pkb: *Pkb,
+        result_writer: std.io.FixedBufferStream([]u8).Writer,
+        p1: RefQueryArg, p2: RefQueryArg
+    ) anyerror!u32,
+    stream: *std.io.FixedBufferStream([]u8),
+    p1: RefQueryArg, p2: RefQueryArg,
+    expected: u32,
+) !void {
+    try std.testing.expectEqual(
+        expected, 
+        try func_ptr(pkb, stream.writer(), p1, p2)
+    );
+    stream.reset();
+}
 
 fn checkResult(pkb: *Pkb, buffer: *const [4]u8, expected: u32, convert: bool) !void {
     if (convert) {
@@ -81,6 +98,36 @@ fn checkResult(pkb: *Pkb, buffer: *const [4]u8, expected: u32, convert: bool) !v
     } else {
         try std.testing.expectEqual(expected, std.mem.readInt(u32, buffer, .little));
     }
+}
+
+test "follows extra" {
+    const simple =
+    \\procedure Main {
+    \\ call Init;
+    \\ width = 1;
+    \\ height = 0;
+    \\ tmp = 0;
+    \\ call Random;
+    \\ while I {
+    \\  x1 = width + incre + left;
+    \\ }
+    \\}
+    \\procedure Random {
+    \\ x = 1;
+    \\}
+    \\procedure Init {
+    \\ b = 1;
+    \\}
+    ;
+    var pkb = try getPkb(simple[0..]);
+    defer pkb.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, 1, null, .ASSIGN, 2, null, 0);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, 2, null, .ASSIGN, 4, null, 0);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, 4, null, .ASSIGN, 2, null, 0);
 }
 
 test "follows" {
@@ -113,35 +160,36 @@ test "follows" {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .NONE, 1, null, .NONE, 2, null, 1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .NONE, 1, null, .NONE, 2, null, 1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, 5, null, .ASSIGN, 6, null, 0);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, 2, "i", .NONE, common.STATEMENT_SELECTED, null, 1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, 2, "i", .NONE, common.STATEMENT_SELECTED, null, 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
     
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .IF, 7, null, 1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .IF, 7, null, 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
     
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, 7, null, 0);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, 7, null, 0);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, common.STATEMENT_UNDEFINED, null, 0);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, common.STATEMENT_UNDEFINED, null, 0);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 1);
     try checkResult(pkb, result_buffer[0..4], 2, true);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "i", .WHILE, common.STATEMENT_UNDEFINED, null, 1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "i", .WHILE, common.STATEMENT_UNDEFINED, null, 1);
     try checkResult(pkb, result_buffer[0..4], 2, true);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "x", .WHILE, common.STATEMENT_UNDEFINED, null, 0);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "x", .WHILE, common.STATEMENT_UNDEFINED, null, 0);
     
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "x",  1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "x",  1);
     try checkResult(pkb, result_buffer[0..4], 12, true);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, null,  3);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, null,  3);
     try checkResult(pkb, result_buffer[0..4], 2, true);
     try checkResult(pkb, result_buffer[4..8], 11, true);
     try checkResult(pkb, result_buffer[8..12], 12, true);
 
-    try checkExecute(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "x",  1);
+    try checkExecuteFollowsParent(pkb, api.follows, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "x",  1);
     try checkResult(pkb, result_buffer[0..4], 12, true);
 
 }
@@ -176,67 +224,67 @@ test "follows*" {
    var result_buffer: [1024]u8 = .{0} ** 1024;
    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .NONE, 1, null, .NONE, 2, null, 1);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .NONE, 1, null, .NONE, 2, null, 1);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, 2, null, .NONE, common.STATEMENT_SELECTED, null, 5);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, 2, null, .NONE, common.STATEMENT_SELECTED, null, 5);
    try checkResult(pkb, result_buffer[0..4], 3, true);
    try checkResult(pkb, result_buffer[4..8], 7, true);
    try checkResult(pkb, result_buffer[8..12], 10, true);
    try checkResult(pkb, result_buffer[12..16], 11, true);
    try checkResult(pkb, result_buffer[16..20], 12, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, 2, null, .ASSIGN, common.STATEMENT_SELECTED, "z", 2);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, 2, null, .ASSIGN, common.STATEMENT_SELECTED, "z", 2);
    try checkResult(pkb, result_buffer[0..4], 10, true);
    try checkResult(pkb, result_buffer[4..8], 11, true);
    
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .IF, 7, null, 1);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .IF, 7, null, 1);
    try checkResult(pkb, result_buffer[0..4], 3, true);
    
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, 7, null, 2);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, 7, null, 2);
    try checkResult(pkb, result_buffer[0..4], 2, true);
    try checkResult(pkb, result_buffer[4..8], 1, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "i", .IF, 7, null, 1);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "i", .IF, 7, null, 1);
    try checkResult(pkb, result_buffer[0..4], 2, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, common.STATEMENT_UNDEFINED, null, 2);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .IF, common.STATEMENT_UNDEFINED, null, 2);
    try checkResult(pkb, result_buffer[0..4], 1, true);
    try checkResult(pkb, result_buffer[4..8], 2, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "x", .IF, common.STATEMENT_UNDEFINED, null, 1);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, "x", .IF, common.STATEMENT_UNDEFINED, null, 1);
    try checkResult(pkb, result_buffer[0..4], 1, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 2);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 2);
    try checkResult(pkb, result_buffer[0..4], 1, true);
    try checkResult(pkb, result_buffer[4..8], 2, true);
    
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, null, 5);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, null, 5);
    try checkResult(pkb, result_buffer[0..4], 2, true);
    try checkResult(pkb, result_buffer[4..8], 6, true);
    try checkResult(pkb, result_buffer[8..12], 10, true);
    try checkResult(pkb, result_buffer[12..16], 11, true);
    try checkResult(pkb, result_buffer[16..20], 12, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "x", .ASSIGN, common.STATEMENT_SELECTED, null, 5);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "x", .ASSIGN, common.STATEMENT_SELECTED, null, 5);
    try checkResult(pkb, result_buffer[0..4], 2, true);
    try checkResult(pkb, result_buffer[4..8], 6, true);
    try checkResult(pkb, result_buffer[8..12], 10, true);
    try checkResult(pkb, result_buffer[12..16], 11, true);
    try checkResult(pkb, result_buffer[16..20], 12, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "x", .ASSIGN, common.STATEMENT_SELECTED, null, 5);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "x", .ASSIGN, common.STATEMENT_SELECTED, null, 5);
    try checkResult(pkb, result_buffer[0..4], 2, true);
    try checkResult(pkb, result_buffer[4..8], 6, true);
    try checkResult(pkb, result_buffer[8..12], 10, true);
    try checkResult(pkb, result_buffer[12..16], 11, true);
    try checkResult(pkb, result_buffer[16..20], 12, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "i", .ASSIGN, common.STATEMENT_SELECTED, null, 3);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "i", .ASSIGN, common.STATEMENT_SELECTED, null, 3);
    try checkResult(pkb, result_buffer[0..4], 10, true);
    try checkResult(pkb, result_buffer[4..8], 11, true);
    try checkResult(pkb, result_buffer[8..12], 12, true);
 
-   try checkExecute(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "i", .ASSIGN, common.STATEMENT_SELECTED, "z", 2);
+   try checkExecuteFollowsParent(pkb, api.followsTransitive, &result_buffer_stream, .ASSIGN, common.STATEMENT_UNDEFINED, "i", .ASSIGN, common.STATEMENT_SELECTED, "z", 2);
    try checkResult(pkb, result_buffer[0..4], 10, true);
    try checkResult(pkb, result_buffer[4..8], 11, true);
 }
@@ -272,41 +320,41 @@ test "parent" {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
     
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .NONE, 4, null, 1);
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .NONE, common.STATEMENT_SELECTED, "i", 2);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .NONE, 4, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .NONE, common.STATEMENT_SELECTED, "i", 2);
     try checkResult(pkb, result_buffer[0..4], 6, true);
     try checkResult(pkb, result_buffer[4..8], 7, true);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .IF, 3, null, .NONE, 4, null, 0);
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .NONE, 4, null, 1);
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .ASSIGN, 4, null, 1);
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .CALL, 5, null, 1);
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .WHILE, 4, null, 0);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .IF, 3, null, .NONE, 4, null, 0);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .NONE, 4, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .ASSIGN, 4, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .CALL, 5, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, 3, null, .WHILE, 4, null, 0);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .CALL, 5, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .CALL, 5, null, 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .CALL, common.STATEMENT_UNDEFINED, "Third", 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .CALL, common.STATEMENT_UNDEFINED, "Third", 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "i", 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
     
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .IF, 8, null, .ASSIGN, common.STATEMENT_SELECTED, null, 2);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .IF, 8, null, .ASSIGN, common.STATEMENT_SELECTED, null, 2);
     try checkResult(pkb, result_buffer[0..4], 9, true);
     try checkResult(pkb, result_buffer[4..8], 10, true);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .IF, 8, null, .ASSIGN, common.STATEMENT_SELECTED, "z", 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .IF, 8, null, .ASSIGN, common.STATEMENT_SELECTED, "z", 1);
     try checkResult(pkb, result_buffer[0..4], 10, true);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .IF, 8, null, .ASSIGN, common.STATEMENT_SELECTED, "p", 0);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .IF, 8, null, .ASSIGN, common.STATEMENT_SELECTED, "p", 0);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "i", 1);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "m", 0);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "m", 0);
 
-    try checkExecute(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .NONE, common.STATEMENT_SELECTED, null, 4);
+    try checkExecuteFollowsParent(pkb, api.parent, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .NONE, common.STATEMENT_SELECTED, null, 4);
     try checkResult(pkb, result_buffer[0..4], 4, true);
     try checkResult(pkb, result_buffer[4..8], 5, true);
     try checkResult(pkb, result_buffer[8..12], 6, true);
@@ -349,20 +397,20 @@ test "parent*" {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
     
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, 6, null, 1);
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, 6, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .NONE, 6, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .NONE, 6, null, 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
     
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .NONE, 10, null, 2);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .NONE, 10, null, 2);
     try checkResult(pkb, result_buffer[0..4], 9, true);
     try checkResult(pkb, result_buffer[4..8], 3, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .NONE, 6, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .NONE, 6, null, 1);
     try checkResult(pkb, result_buffer[0..4], 5, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, common.STATEMENT_SELECTED, null, 9);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, common.STATEMENT_SELECTED, null, 9);
     try checkResult(pkb, result_buffer[0..4], 4, true);
     try checkResult(pkb, result_buffer[4..8], 5, true);
     try checkResult(pkb, result_buffer[8..12], 6, true);
@@ -373,28 +421,28 @@ test "parent*" {
     try checkResult(pkb, result_buffer[28..32], 11, true);
     try checkResult(pkb, result_buffer[32..36], 12, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, common.STATEMENT_SELECTED, "i", 2);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, common.STATEMENT_SELECTED, "i", 2);
     try checkResult(pkb, result_buffer[0..4], 8, true);
     try checkResult(pkb, result_buffer[4..8], 10, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "y", 2);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .ASSIGN, common.STATEMENT_UNDEFINED, "y", 2);
     try checkResult(pkb, result_buffer[0..4], 9, true);
     try checkResult(pkb, result_buffer[4..8], 3, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .CALL, common.STATEMENT_UNDEFINED, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .CALL, common.STATEMENT_UNDEFINED, null, 1);
     try checkResult(pkb, result_buffer[0..4], 5, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 1);
     try checkResult(pkb, result_buffer[0..4], 3, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 0);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_SELECTED, null, .WHILE, common.STATEMENT_UNDEFINED, null, 0);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .WHILE, common.STATEMENT_SELECTED, null, 0);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .WHILE, common.STATEMENT_SELECTED, null, 0);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .IF, common.STATEMENT_SELECTED, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .IF, common.STATEMENT_SELECTED, null, 1);
     try checkResult(pkb, result_buffer[0..4], 9, true);
 
-    try checkExecute(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "i", 2);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .WHILE, common.STATEMENT_UNDEFINED, null, .ASSIGN, common.STATEMENT_SELECTED, "i", 2);
     try checkResult(pkb, result_buffer[0..4], 8, true);
     try checkResult(pkb, result_buffer[4..8], 10, true);
 }
@@ -435,39 +483,39 @@ test "modifies" {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
     
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "x", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "x", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "i", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "y", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "y", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "z", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "z", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "j", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Second" }, "j", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "j", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "j", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "x", 0);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "y", 0);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "i", 0);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "z", 0);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "x", 0);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "y", 0);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "i", 0);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .proc_name = "Third" }, "z", 0);
 
 
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(1)) }, "x", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(1)) }, "x", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "x", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "x", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "i", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "y", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "y", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "i", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "y", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "y", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "i", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y", 1);
+    try checkExecuteUsesModifies(pkb, api.modifies, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
 }
 
@@ -507,40 +555,151 @@ test "uses" {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
     
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "b", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "b", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "m", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "m", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "n", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "n", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "h", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "h", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "t", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "t", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "x", 0);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "k", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "x", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Second" }, "k", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
 
 
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "k", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "k", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "j", 0);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "y", 0);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "i", 0);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "z", 0);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "m", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "j", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "y", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "i", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "z", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .proc_name = "Third" }, "m", 0);
 
 
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(4)) }, "b", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(4)) }, "b", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "b", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "b", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "m", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "m", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "x", 0);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "i", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "x", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "i", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "n", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "n", 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
-    try checkExecute2(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y", 0);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y", 0);
+}
+
+test "calls" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  if s then {
+    \\      x = 1 + b;
+    \\      while i {
+    \\          x = 2 * y + m;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { 
+    \\              i = 1; 
+    \\          } else {
+    \\              y = 2 + n;
+    \\          }
+    \\      }
+    \\  } else {
+    \\      z = 1 + h;
+    \\  }
+    \\  z = z + i;
+    \\  y = z + 2;
+    \\  x = y + z + t;
+    \\}
+    \\procedure Third {
+    \\    call First;
+    \\}
+    \\procedure First {
+    \\    call Fourth;
+    \\}
+    \\procedure Fourth {
+    \\  j = 1 + k;
+    \\}
+    ;
+
+    var pkb = try getPkb(simple[0..]);
+    defer pkb.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+
+    try checkExecuteCalls(pkb, api.calls, &result_buffer_stream, .{ .proc_name = "Second" }, .{ .proc_name = "Third" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecuteCalls(pkb, api.calls, &result_buffer_stream, .{ .proc_name = "Second" }, .{ .proc_name = "First" }, 0);
+    try checkExecuteCalls(pkb, api.calls, &result_buffer_stream, .{ .proc_name = "Second" }, .{ .proc_name = "Fourth" }, 0);
+
+    try checkExecuteCalls(pkb, api.calls, &result_buffer_stream, .{ .proc_name = "Third" }, .{ .proc_name = "First" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecuteCalls(pkb, api.calls, &result_buffer_stream, .{ .proc_name = "Third" }, .{ .proc_name = "Fourth" }, 0);
+
+    try checkExecuteCalls(pkb, api.calls, &result_buffer_stream, .{ .proc_name = "First" }, .{ .proc_name = "Fourth" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+}
+
+test "calls*" {
+    const simple = 
+    \\procedure Second {
+    \\  x = 0;
+    \\  i = 5;
+    \\  if s then {
+    \\      x = 1 + b;
+    \\      while i {
+    \\          x = 2 * y + m;
+    \\          call Third;
+    \\          i = i - 1;
+    \\          if c then { 
+    \\              i = 1; 
+    \\          } else {
+    \\              y = 2 + n;
+    \\          }
+    \\      }
+    \\  } else {
+    \\      z = 1 + h;
+    \\  }
+    \\  z = z + i;
+    \\  y = z + 2;
+    \\  x = y + z + t;
+    \\}
+    \\procedure Third {
+    \\    call First;
+    \\}
+    \\procedure First {
+    \\    call Fourth;
+    \\}
+    \\procedure Fourth {
+    \\  j = 1 + k;
+    \\}
+    ;
+
+    var pkb = try getPkb(simple[0..]);
+    defer pkb.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+
+    try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "Second" }, .{ .proc_name = "Third" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "Second" }, .{ .proc_name = "First" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "Second" }, .{ .proc_name = "Fourth" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+
+    try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "Third" }, .{ .proc_name = "First" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+    try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "Third" }, .{ .proc_name = "Fourth" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
+
+    try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "First" }, .{ .proc_name = "Fourth" }, 1);
+    try checkResult(pkb, result_buffer[0..4], 1, false);
 }

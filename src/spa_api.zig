@@ -20,6 +20,7 @@ const api = struct {
     usingnamespace @import("follows_api.zig").FollowsApi(c_uint);
     usingnamespace @import("parent_api.zig").ParentApi(c_uint);
     usingnamespace @import("uses_modifies_api.zig").UsesModifiesApi(c_uint);
+    usingnamespace @import("calls_api.zig").CallsApi(c_uint);
 };
 
 const allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -196,7 +197,7 @@ pub export fn Follows(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(api.follows,
+    return execRelationFollowsParent(api.follows,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -210,7 +211,7 @@ pub export fn FollowsTransitive(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(api.followsTransitive,
+    return execRelationFollowsParent(api.followsTransitive,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -224,7 +225,7 @@ pub export fn Parent(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(api.parent,
+    return execRelationFollowsParent(api.parent,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
@@ -238,30 +239,49 @@ pub export fn ParentTransitive(
     s1_type: c_uint, s1: c_uint, s1_value: [*:0]const u8,
     s2_type: c_uint, s2: c_uint, s2_value: [*:0]const u8,
 ) callconv(.C) [*c]c_uint {
-    return execRelation(api.parentTransitive,
+    return execRelationFollowsParent(api.parentTransitive,
         s1_type, s1, s1_value,
         s2_type, s2, s2_value,
     );
 }
 
 pub export fn ModifiesProc(proc_name: [*:0]const u8, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
-    return execRelation2(api.modifies,
+    return execRelationUsesModifies(api.modifies,
         .{ .proc_name = proc_name[0..std.mem.len(proc_name)] },
         var_name
     );
 }
 pub export fn Modifies(node_id: c_uint, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
-    return execRelation2(api.modifies, .{ .node_id = node_id }, var_name );
+    return execRelationUsesModifies(api.modifies, .{ .node_id = node_id }, var_name );
 }
 
 pub export fn UsesProc(proc_name: [*:0]const u8, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
-    return execRelation2(api.uses,
+    return execRelationUsesModifies(api.uses,
         .{ .proc_name = proc_name[0..std.mem.len(proc_name)] },
         var_name
     );
 }
 pub export fn Uses(node_id: c_uint, var_name: [*:0]const u8) callconv(.C) [*c]c_uint {
-    return execRelation2(api.uses, .{ .node_id = node_id }, var_name );
+    return execRelationUsesModifies(api.uses, .{ .node_id = node_id }, var_name );
+}
+
+pub export fn CallsProcNameProcName(p1: [*:0]const u8, p2: [*:0]const u8) callconv(.C) [*c]c_uint {
+    return execRelationCalls(api.calls,
+        .{ .proc_name = p1[0..std.mem.len(p1)] },
+        .{ .proc_name = p2[0..std.mem.len(p2)] }
+    );
+}
+pub export fn CallsTransitiveProcNameProcName(p1: [*:0]const u8, p2: [*:0]const u8) callconv(.C) [*c]c_uint {
+    return execRelationCalls(api.callsTransitive,
+        .{ .proc_name = p1[0..std.mem.len(p1)] },
+        .{ .proc_name = p2[0..std.mem.len(p2)] }
+    );
+}
+pub export fn CallsNodeIdNodeId(p1: c_uint, p2: c_uint) callconv(.C) [*c]c_uint {
+    return execRelationCalls(api.calls, .{ .node_id = p1 }, .{ .node_id = p2 });
+}
+pub export fn CallsTransitiveNodeIdNodeId(p1: c_uint, p2: c_uint) callconv(.C) [*c]c_uint {
+    return execRelationCalls(api.callsTransitive, .{ .node_id = p1 }, .{ .node_id = p2 });
 }
 
 
@@ -283,6 +303,8 @@ pub const ErrorEnum = enum(u32) {
     NODE_ID_OUT_OF_BOUNDS,
     PROC_ID_OUT_OF_BOUNDS,
     VAR_ID_OUT_OF_BOUNDS,
+    PROC_NOT_FOUND,
+    VAR_NOT_FOUND,
     TRIED_TO_USE_EMPTY_INSTANCE,
     TOKENIZER_OUT_OF_MEMORY,
     SIMPLE_STREAM_READING_ERROR,
@@ -318,7 +340,7 @@ pub fn errorToEnum(err: Error) ErrorEnum {
     };
 }
 
-fn execRelation(
+fn execRelationFollowsParent(
     func: *const fn(*Pkb,
         std.io.FixedBufferStream([]u8).Writer,
         NodeType, u32, ?[]const u8,
@@ -352,7 +374,7 @@ fn execRelation(
     }
     return 0x0;
 }
-fn execRelation2(
+fn execRelationUsesModifies(
     func: *const fn(pkb: *Pkb,
     result_writer: std.io.FixedBufferStream([]u8).Writer,
         ref_query_arg: ApiCommon.RefQueryArg, var_name: ?[]const u8,
@@ -364,6 +386,33 @@ fn execRelation2(
             result_buffer_stream.writer(),
             ref_query_arg,
             if (std.mem.len(var_name) > 0) var_name[0..std.mem.len(var_name)] else null
+        ) catch |e| {
+            if (e == error.UNSUPPORTED_COMBINATION) {
+                error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));
+            } else {
+                error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
+            }
+
+            return 0x0;
+        };
+        result_buffer_stream.reset();
+        return @alignCast(@ptrCast(result_buffer[0..].ptr));
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
+    }
+    return 0x0;
+}
+fn execRelationCalls(
+    func: *const fn(pkb: *Pkb,
+    result_writer: std.io.FixedBufferStream([]u8).Writer,
+        p1: ApiCommon.RefQueryArg, p2: ApiCommon.RefQueryArg
+    ) anyerror!u32,
+    p1: ApiCommon.RefQueryArg, p2: ApiCommon.RefQueryArg
+) [*c]c_uint {
+    if (instance) |value| {
+        result_buffer_size = func(value,
+            result_buffer_stream.writer(),
+            p1, p2,
         ) catch |e| {
             if (e == error.UNSUPPORTED_COMBINATION) {
                 error_code = @intFromEnum(errorToEnum(error.UNSUPPORTED_COMBINATION));

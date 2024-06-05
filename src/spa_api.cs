@@ -40,6 +40,8 @@ public sealed class SpaApi {
 		NODE_ID_OUT_OF_BOUNDS,
 		PROC_ID_OUT_OF_BOUNDS,
 		VAR_ID_OUT_OF_BOUNDS,
+		PROC_NOT_FOUND,
+		VAR_NOT_FOUND,
 		TRIED_TO_USE_EMPTY_INSTANCE,
 		TOKENIZER_OUT_OF_MEMORY,
 		SIMPLE_STREAM_READING_ERROR,
@@ -274,4 +276,16 @@ public sealed class SpaApi {
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
 	public static extern UIntPtr Uses(uint node_id, string var_name);
+
+	/// <summary>
+	/// Calls relation. As parameters, takes procedures names. 
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern UIntPtr CallsProcNameProcName(string p1, string p2);
+	/// <summary>
+	/// Calls* relation. As parameters, takes procedures names. 
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern UIntPtr CallsTransitiveProcNameProcName(string p1, string p2);
+
 }
