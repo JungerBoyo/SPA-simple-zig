@@ -351,7 +351,7 @@ namespace SPA.PQL.QueryElements {
 
                 if (variable is not null)
                 {
-                    foreach (var element in variable.Elements.Where(x => x.ProgramElement.ValueId > 0))
+                    foreach (var element in variable.Elements)
                     {
                         element.ProgramElement.Metadata = element.ProgramElement.Type == SpaApi.StatementType.VAR ? pkbApi.GetVariableName(element.ProgramElement.ValueId) : pkbApi.GetProcedureName(element.ProgramElement.ValueId);
                     }
