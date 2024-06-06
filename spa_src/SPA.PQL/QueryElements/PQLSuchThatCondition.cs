@@ -242,7 +242,7 @@ namespace SPA.PQL.QueryElements {
             {
                 selectedVariable = variables.First(x => x.VariableName == reference.VariableName);
 
-                return selectedVariable.Elements.Select(x => x.ProgramElement.StatementNumber).ToList();
+                return selectedVariable.Elements.Select(x => x.ProgramElement.StatementNumber).Distinct().ToList();
             }
 
             return [];
