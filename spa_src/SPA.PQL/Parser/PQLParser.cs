@@ -62,7 +62,7 @@ namespace SPA.PQL.Parser {
                 return new PQLQueryResult()
                 {
                     IsBooleanResult = false,
-                    VariableNames = variablesReturned,
+                    VariableNames = variablesReturned.ToList(),
                 };
             }
 
@@ -74,7 +74,7 @@ namespace SPA.PQL.Parser {
                 return new PQLQueryResult()
                 {
                     IsBooleanResult = true,
-                    VariableNames = Array.Empty<string>(),
+                    VariableNames = new List<string>(),
                 };
             }
             

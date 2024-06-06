@@ -126,12 +126,12 @@ namespace SPA.PQL.QueryElements {
 
                 if (leftSelectedVariable is not null)
                 {
-                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.StatementNumber));
+                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.StatementNumber));
                 }
 
                 if (rightSelectedVariable is not null)
                 {
-                    rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.Metadata));
+                    rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
                 }
             }
             else
@@ -147,7 +147,7 @@ namespace SPA.PQL.QueryElements {
 
                 if (rightSelectedVariable is not null)
                 {
-                    rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y == x.Metadata));
+                    rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y == x.ProgramElement.Metadata));
                 }
                 else
                 {
@@ -172,11 +172,11 @@ namespace SPA.PQL.QueryElements {
                 {
                     foreach (var element in variable.Elements)
                     {
-                        element.Metadata = pkbApi.GetVariableName(element.ValueId);
+                        element.ProgramElement.Metadata = pkbApi.GetVariableName(element.ProgramElement.ValueId);
                     }
 
-                    return variable.Elements.Where(x => x.Metadata is not null)
-                        .Select(x => x.Metadata!).ToList();
+                    return variable.Elements.Where(x => x.ProgramElement.Metadata is not null)
+                        .Select(x => x.ProgramElement.Metadata!).ToList();
                 }
             }
 
@@ -210,9 +210,21 @@ namespace SPA.PQL.QueryElements {
                 }
             }
 
-            leftSelectedVariable?.Elements.RemoveAll(x => !results.Any(y => y.left == x.StatementNumber));
+            foreach (var item in results)
+            {
+                var left = leftSelectedVariable?.Elements.FirstOrDefault(x => x.ProgramElement.StatementNumber == item.left);
+                var right = rightSelectedVariable?.Elements.FirstOrDefault(x => x.ProgramElement.StatementNumber == item.right);
+                
+                if (left is not null && right is not null)
+                {
+                    left.Depends.Add(KeyValuePair.Create(rightSelectedVariable!, right.ProgramElement));
+                    right.Depends.Add(KeyValuePair.Create(leftSelectedVariable!, left.ProgramElement));
+                }
+            }
+            
+            leftSelectedVariable?.Elements.RemoveAll(x => !results.Any(y => y.left == x.ProgramElement.StatementNumber));
 
-            rightSelectedVariable?.Elements.RemoveAll(x => !results.Any(y => y.right == x.StatementNumber));
+            rightSelectedVariable?.Elements.RemoveAll(x => !results.Any(y => y.right == x.ProgramElement.StatementNumber));
         }
 
         private static List<uint> GetStatementNumbers(PQLSuchThatConditionReference reference, List<EvaluatedVariable> variables,
@@ -230,7 +242,7 @@ namespace SPA.PQL.QueryElements {
             {
                 selectedVariable = variables.First(x => x.VariableName == reference.VariableName);
 
-                return selectedVariable.Elements.Select(x => x.StatementNumber).ToList();
+                return selectedVariable.Elements.Select(x => x.ProgramElement.StatementNumber).ToList();
             }
 
             return [];

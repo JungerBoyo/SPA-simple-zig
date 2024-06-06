@@ -160,7 +160,7 @@ fn parentModeDef(pkb: *Pkb,
 ) !u32 {
     const s_parent_index = pkb.ast.findStatement(s_parent);
     const s_parent_node = pkb.ast.nodes[s_parent_index];
-    if (s_parent_index == 0 or s_parent_node.type != s_parent_type or !pkb.ast.checkValue(s_parent_node, s_parent_value)) {
+    if (s_parent_index == 0 or (s_parent_node.type != s_parent_type and s_parent_type != .NONE) or !pkb.ast.checkValue(s_parent_node, s_parent_value)) {
         return 0;
     }
     if (s_parent_node.type == .WHILE) {
@@ -183,7 +183,7 @@ pub fn parent(pkb: *Pkb,
     s1_type: NodeType, s1: u32, s1_value: ?[]const u8,
     s2_type: NodeType, s2: u32, s2_value: ?[]const u8,
 ) !u32 {
-    if (pkb.ast.statement_map.len < 2 or s1 == s2 or (s1_type != .IF and s1_type != .WHILE)) {
+    if (pkb.ast.statement_map.len < 2 or s1 == s2 or (s1_type != .IF and s1_type != .WHILE and s1_type != .NONE)) {
         return 0;
     }
     // both undefined

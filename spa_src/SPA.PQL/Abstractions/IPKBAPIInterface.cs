@@ -45,18 +45,24 @@ namespace SPA.PQL.Abstractions {
                     ValueId = temp.value_id,
                 });
 
-                if (type == SpaApi.StatementType.ASSIGN && !result.Any(x => x.Type == SpaApi.StatementType.VAR && x.ValueId == temp.value_id))
+                i++;
+            }
+
+            for (int j = 0; j < result.Count; j++)
+            {
+                var item = result[j];
+
+                if (item.Type == SpaApi.StatementType.ASSIGN &&
+                    !result.Any(x => x.Type == SpaApi.StatementType.VAR && x.ValueId == item.ValueId))
                 {
                     result.Add(new ProgramElement()
                     {
                         Type = SpaApi.StatementType.VAR,
-                        LineNumber = temp.line_no,
+                        LineNumber = item.LineNumber,
                         StatementNumber = 0,
-                        ValueId = temp.value_id,
+                        ValueId = item.ValueId,
                     });
                 }
-
-                i++;
             }
 
             return result;
@@ -86,7 +92,7 @@ namespace SPA.PQL.Abstractions {
         {
             if (s1_type == s2_type && s1 == s2)
                 return false;
-            
+
             var pointer = SpaApi.Follows(s1_type, s1, "", s2_type, s2, "");
 
             if (pointer == 0)

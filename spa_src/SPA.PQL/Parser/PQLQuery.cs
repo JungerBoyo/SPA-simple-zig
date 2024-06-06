@@ -23,7 +23,7 @@ namespace SPA.PQL.Parser {
 
             if (QueryResult.VariableNames.Contains("BOOLEAN"))
             {
-                if(QueryResult.VariableNames.Length > 1)
+                if(QueryResult.VariableNames.Count > 1)
                     result.Errors.Add($"If we're returning BOOLEAN result, we cannot return any other variables");
             }
             else
