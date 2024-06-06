@@ -104,5 +104,29 @@ namespace SPA.PQL.Tests {
                 Assert.Contains(variableResult.BaseResults, x => x == 4);
             }
         }
+
+        [Fact]
+        public void Test6()
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "TestCodes/SIMPLE_Source_test.txt");
+
+            var simpleQuery = "stmt s;Select s such that Parent(s, 10)";
+
+            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            {
+                var validationResult = evaluator.ValidateQuery();
+
+                Assert.Empty(validationResult.Errors);
+                
+                var result = evaluator.Evaluate(path);
+                Assert.IsType<VariableQueryResult>(result);
+                
+                var variableResult = (result as VariableQueryResult)!;
+                
+                Assert.NotEmpty(variableResult.BaseResults);
+                Assert.Single(variableResult.BaseResults);
+                Assert.Contains(variableResult.BaseResults, x => x == 6);
+            }
+        }
     }
 }
