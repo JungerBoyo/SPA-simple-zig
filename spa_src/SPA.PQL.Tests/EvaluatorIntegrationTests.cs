@@ -11,13 +11,13 @@ namespace SPA.PQL.Tests {
 
             var simpleQuery = "assign x; Select x";
 
-            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            using (var evaluator = new PQLEvaluator(new PKBInterface(), path))
             {
-                var validationResult = evaluator.ValidateQuery();
+                var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
                 
-                var result = evaluator.Evaluate(path);
+                var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
             }
         }
@@ -29,13 +29,13 @@ namespace SPA.PQL.Tests {
 
             var simpleQuery = "procedure x; Select x";
 
-            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            using (var evaluator = new PQLEvaluator(new PKBInterface(), path))
             {
-                var validationResult = evaluator.ValidateQuery();
+                var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
                 
-                var result = evaluator.Evaluate(path);
+                var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
             }
         }
@@ -47,13 +47,13 @@ namespace SPA.PQL.Tests {
 
             var simpleQuery = "variable x;Select x such that Modifies(\"Proc1\", x)";
 
-            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            using (var evaluator = new PQLEvaluator(new PKBInterface(), path))
             {
-                var validationResult = evaluator.ValidateQuery();
+                var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
                 
-                var result = evaluator.Evaluate(path);
+                var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
             }
         }
@@ -65,13 +65,13 @@ namespace SPA.PQL.Tests {
 
             var simpleQuery = "assign a, b;Select a such that Follows(b, a)";
 
-            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            using (var evaluator = new PQLEvaluator(new PKBInterface(), path))
             {
-                var validationResult = evaluator.ValidateQuery();
+                var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
                 
-                var result = evaluator.Evaluate(path);
+                var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
                 
                 var variableResult = (result as VariableQueryResult)!;
@@ -88,13 +88,13 @@ namespace SPA.PQL.Tests {
 
             var simpleQuery = "assign a, b, c;Select a such that Follows(b, a) and Follows (c, b)";
 
-            using (var evaluator = new PQLEvaluator(simpleQuery, new PKBInterface()))
+            using (var evaluator = new PQLEvaluator(new PKBInterface(), path))
             {
-                var validationResult = evaluator.ValidateQuery();
+                var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
                 
-                var result = evaluator.Evaluate(path);
+                var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
                 
                 var variableResult = (result as VariableQueryResult)!;
