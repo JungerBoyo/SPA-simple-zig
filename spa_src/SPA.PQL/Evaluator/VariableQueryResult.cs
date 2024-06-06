@@ -1,13 +1,14 @@
 ﻿using SPA.PQL.Abstractions;
+using SPA.PQL.Elements;
 
 namespace SPA.PQL.Evaluator;
 
 public sealed class VariableQueryResult : QueryResult {
-    internal IEnumerable<uint> BaseResults { get; private init; }
+    internal List<ProgramElement> BaseResults { get; private init; }
     
-    public VariableQueryResult(IEnumerable<string> queries, IEnumerable<uint> results) : base(queries)
+    public VariableQueryResult(IEnumerable<string> queries, IEnumerable<ProgramElement> results) : base(queries)
     {
-        Results = results.Select(x => x.ToString()).ToList();
-        BaseResults = results;
+        BaseResults = results.ToList();
+        Results = BaseResults.Select(x => x.ToString()).ToList();
     }
 }

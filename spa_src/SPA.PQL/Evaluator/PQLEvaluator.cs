@@ -90,7 +90,7 @@ public sealed class PQLEvaluator : IDisposable {
         {
             var data = loadedVariables
                 .First(x => x.VariableName == _query.QueryResult.VariableNames[0]).Elements
-                .Select(x => x.ProgramElement.StatementNumber)
+                .Select(x => x.ProgramElement)
                 .ToList();
 
             return new VariableQueryResult(compiledRelations, data);

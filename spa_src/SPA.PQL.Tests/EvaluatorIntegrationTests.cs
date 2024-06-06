@@ -2,8 +2,10 @@
 using SPA.PQL.Evaluator;
 using Xunit;
 
-namespace SPA.PQL.Tests {
-    public sealed class EvaluatorIntegrationTests {
+namespace SPA.PQL.Tests
+{
+    public sealed class EvaluatorIntegrationTests
+    {
         [Fact]
         public void Test1()
         {
@@ -16,12 +18,12 @@ namespace SPA.PQL.Tests {
                 var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
-                
+
                 var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
             }
         }
-        
+
         [Fact]
         public void Test2()
         {
@@ -34,12 +36,12 @@ namespace SPA.PQL.Tests {
                 var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
-                
+
                 var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
             }
         }
-        
+
         [Fact]
         public void Test3()
         {
@@ -52,12 +54,12 @@ namespace SPA.PQL.Tests {
                 var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
-                
+
                 var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
             }
         }
-        
+
         [Fact]
         public void Test4()
         {
@@ -70,14 +72,14 @@ namespace SPA.PQL.Tests {
                 var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
-                
+
                 var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
-                
+
                 var variableResult = (result as VariableQueryResult)!;
-                
+
                 Assert.NotEmpty(variableResult.BaseResults);
-                Assert.Contains(variableResult.BaseResults, x => x == 3);
+                Assert.Contains(variableResult.BaseResults, x => x.StatementNumber == 3);
             }
         }
 
@@ -93,15 +95,15 @@ namespace SPA.PQL.Tests {
                 var validationResult = evaluator.ValidateQuery(simpleQuery);
 
                 Assert.Empty(validationResult.Errors);
-                
+
                 var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
-                
+
                 var variableResult = (result as VariableQueryResult)!;
-                
+
                 Assert.NotEmpty(variableResult.BaseResults);
                 Assert.Single(variableResult.BaseResults);
-                Assert.Contains(variableResult.BaseResults, x => x == 4);
+                Assert.Contains(variableResult.BaseResults, x => x.StatementNumber == 4);
             }
         }
 
@@ -120,12 +122,32 @@ namespace SPA.PQL.Tests {
                 
                 var result = evaluator.Evaluate();
                 Assert.IsType<VariableQueryResult>(result);
-                
+
                 var variableResult = (result as VariableQueryResult)!;
-                
+
                 Assert.NotEmpty(variableResult.BaseResults);
                 Assert.Single(variableResult.BaseResults);
-                Assert.Contains(variableResult.BaseResults, x => x == 6);
+                Assert.Contains(variableResult.BaseResults, x => x.StatementNumber == 6);
+            }
+        }
+
+        [Fact]
+        public void Test7()
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "TestCodes/SIMPLE_Source_test.txt");
+
+            var simpleQuery = "variable v;Select v such that Modifies(\"Main\", v)";
+            var pkb = new PKBInterface();
+            using (var evaluator = new PQLEvaluator(pkb, path))
+            {
+                var validationResult = evaluator.ValidateQuery(simpleQuery);
+
+                Assert.Empty(validationResult.Errors);
+
+                var result = evaluator.Evaluate();
+                Assert.IsType<VariableQueryResult>(result);
+
+                var variableResult = (result as VariableQueryResult)!;
             }
         }
     }

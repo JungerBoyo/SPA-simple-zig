@@ -7,7 +7,6 @@ namespace SPA.PQL.Abstractions {
         List<ProgramElement> Init(string path);
         bool Parent(uint s1_type, uint s1, uint s2_type, uint s2);
         bool Follow(uint s1_type, uint s1, uint s2_type, uint s2);
-        bool Uses(uint s1_type, uint s1, uint s2_type, uint s2);
         bool Modifies(uint stmt, string varName);
         void DeInit();
         bool ParentTransitive(uint s1_type, uint s1, uint s2_type, uint s2);
@@ -15,6 +14,10 @@ namespace SPA.PQL.Abstractions {
         string? GetVariableName(uint valueId);
         bool ModifiesProc(string procName, string varName);
         string? GetProcedureName(uint valueId);
+        bool Uses(uint stmt, string varName);
+        bool UsesProc(string procName, string varName);
+        bool Calls(string? procName1, string procName2);
+        bool CallsTransitive(string? procName1, string procName2);
     }
 
     public sealed class PKBInterface : IPKBInterface {
@@ -46,23 +49,6 @@ namespace SPA.PQL.Abstractions {
                 });
 
                 i++;
-            }
-
-            for (int j = 0; j < result.Count; j++)
-            {
-                var item = result[j];
-
-                if (item.Type == SpaApi.StatementType.ASSIGN &&
-                    !result.Any(x => x.Type == SpaApi.StatementType.VAR && x.ValueId == item.ValueId))
-                {
-                    result.Add(new ProgramElement()
-                    {
-                        Type = SpaApi.StatementType.VAR,
-                        LineNumber = item.LineNumber,
-                        StatementNumber = 0,
-                        ValueId = item.ValueId,
-                    });
-                }
             }
 
             return result;
@@ -120,7 +106,7 @@ namespace SPA.PQL.Abstractions {
         {
             var pointer = SpaApi.GetVarName(valueId);
 
-            return Marshal.PtrToStringAnsi(pointer);
+            return new string(Marshal.PtrToStringAnsi(pointer));
         }
 
         public bool ModifiesProc(string procName, string varName)
@@ -137,12 +123,47 @@ namespace SPA.PQL.Abstractions {
         {
             var pointer = SpaApi.GetProcName(valueId);
 
-            return Marshal.PtrToStringAnsi(pointer);
+            return new string(Marshal.PtrToStringAnsi(pointer));
         }
 
-        public bool Uses(uint s1_type, uint s1, uint s2_type, uint s2)
+        public bool Uses(uint stmt, string varName)
         {
-            throw new NotImplementedException();
+            var pointer = SpaApi.Modifies(stmt, varName);
+
+            if (pointer == 0)
+                return false;
+
+            return (uint)Marshal.ReadInt32(unchecked((IntPtr)(long)(ulong)pointer)) > 0 && SpaApi.GetResultSize() > 0;
+        }
+
+        public bool UsesProc(string procName, string varName)
+        {
+            var pointer = SpaApi.UsesProc(procName, varName);
+
+            if (pointer == 0)
+                return false;
+
+            return (uint)Marshal.ReadInt32(unchecked((IntPtr)(long)(ulong)pointer)) > 0 && SpaApi.GetResultSize() > 0;
+        }
+
+        public bool Calls(string? procName1, string procName2)
+        {
+            var pointer = SpaApi.CallsProcNameProcName(procName1, procName2);
+
+            if (pointer == 0)
+                return false;
+
+            return (uint)Marshal.ReadInt32(unchecked((IntPtr)(long)(ulong)pointer)) > 0 && SpaApi.GetResultSize() > 0;
+        }
+
+        public bool CallsTransitive(string? procName1, string procName2)
+        {
+            var pointer = SpaApi.CallsTransitiveProcNameProcName(procName1, procName2);
+
+            if (pointer == 0)
+                return false;
+
+            return (uint)Marshal.ReadInt32(unchecked((IntPtr)(long)(ulong)pointer)) > 0 && SpaApi.GetResultSize() > 0;
         }
 
         public bool Modifies(uint stmt, string varName)

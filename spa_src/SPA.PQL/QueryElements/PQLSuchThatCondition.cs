@@ -50,15 +50,20 @@ namespace SPA.PQL.QueryElements {
                     EvaluateModifies(pkbApi, variables);
                     break;
                 case RelationType.Uses:
+                    EvaluateUses(pkbApi, variables);
                     break;
                 case RelationType.ParentAll:
-                    EvaluateFollowAll(pkbApi, variables);
+                    EvaluateParentAll(pkbApi, variables);
                     break;
                 case RelationType.Next:
                 case RelationType.NextAll:
                 case RelationType.Assign:
                 case RelationType.Calls:
+                    EvaluateCalls(pkbApi, variables);
+                    break;
                 case RelationType.CallsAll:
+                    EvaluateCallsTransitive(pkbApi, variables);
+                    break;
                 case RelationType.FollowsAll:
                     EvaluateFollowAll(pkbApi, variables);
                     break;
@@ -91,19 +96,19 @@ namespace SPA.PQL.QueryElements {
                 yield return RightReference.VariableName!;
         }
 
-        public void EvaluateParent(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        private void EvaluateParent(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
         {
             EvaluateRelation(pkbApi, variables, (pkbApi, leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber)
                 => pkbApi.Parent(leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber));
         }
 
-        public void EvaluateFollow(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        private void EvaluateFollow(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
         {
             EvaluateRelation(pkbApi, variables, (pkbApi, leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber)
                 => pkbApi.Follow(leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber));
         }
 
-        public void EvaluateModifies(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        private void EvaluateModifies(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
         {
             var rightValues = GetVariableNames(RightReference, pkbApi, variables, out var rightSelectedVariable);
 
@@ -157,6 +162,182 @@ namespace SPA.PQL.QueryElements {
             }
         }
 
+        private void EvaluateUses(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        {
+            var rightValues = GetVariableNames(RightReference, pkbApi, variables, out var rightSelectedVariable);
+
+            if (LeftReference.Type != PQLSuchThatConditionReferenceType.TextValue)
+            {
+                var leftStatementNumbers = GetStatementNumbers(LeftReference, variables, out var leftSelectedVariable);
+
+                var pairs = new List<(uint, string)>();
+
+                foreach (var left in leftStatementNumbers)
+                {
+                    foreach (var right in rightValues)
+                    {
+                        if (pkbApi.Uses(left, right))
+                        {
+                            pairs.Add((left, right));
+                        }
+                    }
+                }
+
+                if (leftSelectedVariable is not null)
+                {
+                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.StatementNumber));
+                }
+
+                if (rightSelectedVariable is not null)
+                {
+                    rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
+                }
+            }
+            else
+            {
+                var results = new List<string>();
+                foreach (var rightValue in rightValues)
+                {
+                    if (pkbApi.UsesProc(LeftReference.TextValue!, rightValue))
+                    {
+                        results.Add(rightValue);
+                    }
+                }
+
+                if (rightSelectedVariable is not null)
+                {
+                    rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y == x.ProgramElement.Metadata));
+                }
+                else
+                {
+                    if (results.Count == 0)
+                        throw new EvaluationException("No results");
+                }
+            }
+        }
+        
+        public void EvaluateCalls(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        {
+            var rightValues = GetVariableNames(RightReference, pkbApi, variables, out var rightSelectedVariable);
+
+            if (LeftReference.Type != PQLSuchThatConditionReferenceType.TextValue)
+            {
+                var leftStatementNumbers = GetValueIds(LeftReference, variables, out var leftSelectedVariable);
+
+                var pairs = new List<(uint, string)>();
+
+                foreach (var left in leftStatementNumbers)
+                {
+                    foreach (var right in rightValues)
+                    {
+                        var leftName = pkbApi.GetProcedureName(left);
+                        
+                        foreach (var variable in variables.SelectMany(x => x.Elements).Where(x => x.ProgramElement.ValueId == left))
+                        {
+                            variable.ProgramElement.Metadata = leftName;
+                        }
+                        
+                        if (pkbApi.Calls(leftName, right))
+                        {
+                            pairs.Add((left, right));
+                        }
+                    }
+                }
+
+                if (leftSelectedVariable is not null)
+                {
+                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.StatementNumber));
+                }
+
+                if (rightSelectedVariable is not null)
+                {
+                    rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
+                }
+            }
+            else
+            {
+                var results = new List<string>();
+                foreach (var rightValue in rightValues)
+                {
+                    if (pkbApi.Calls(LeftReference.TextValue!, rightValue))
+                    {
+                        results.Add(rightValue);
+                    }
+                }
+
+                if (rightSelectedVariable is not null)
+                {
+                    rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y == x.ProgramElement.Metadata));
+                }
+                else
+                {
+                    if (results.Count == 0)
+                        throw new EvaluationException("No results");
+                }
+            }
+        }
+
+        public void EvaluateCallsTransitive(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
+        {
+            var rightValues = GetVariableNames(RightReference, pkbApi, variables, out var rightSelectedVariable);
+
+            if (LeftReference.Type != PQLSuchThatConditionReferenceType.TextValue)
+            {
+                var leftStatementNumbers = GetValueIds(LeftReference, variables, out var leftSelectedVariable);
+
+                var pairs = new List<(uint, string)>();
+
+                foreach (var left in leftStatementNumbers)
+                {
+                    foreach (var right in rightValues)
+                    {
+                        var leftName = pkbApi.GetProcedureName(left);
+                        
+                        foreach (var variable in variables.SelectMany(x => x.Elements).Where(x => x.ProgramElement.ValueId == left))
+                        {
+                            variable.ProgramElement.Metadata = leftName;
+                        }
+                        
+                        if (pkbApi.CallsTransitive(leftName, right))
+                        {
+                            pairs.Add((left, right));
+                        }
+                    }
+                }
+
+                if (leftSelectedVariable is not null)
+                {
+                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.StatementNumber));
+                }
+
+                if (rightSelectedVariable is not null)
+                {
+                    rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
+                }
+            }
+            else
+            {
+                var results = new List<string>();
+                foreach (var rightValue in rightValues)
+                {
+                    if (pkbApi.CallsTransitive(LeftReference.TextValue!, rightValue))
+                    {
+                        results.Add(rightValue);
+                    }
+                }
+
+                if (rightSelectedVariable is not null)
+                {
+                    rightSelectedVariable.Elements.RemoveAll(x => !results.Any(y => y == x.ProgramElement.Metadata));
+                }
+                else
+                {
+                    if (results.Count == 0)
+                        throw new EvaluationException("No results");
+                }
+            }
+        }
+        
         private List<string> GetVariableNames(PQLSuchThatConditionReference reference, IPKBInterface pkbApi,
             List<EvaluatedVariable> variables, out EvaluatedVariable? variable)
         {
@@ -170,23 +351,17 @@ namespace SPA.PQL.QueryElements {
 
                 if (variable is not null)
                 {
-                    foreach (var element in variable.Elements)
+                    foreach (var element in variable.Elements.Where(x => x.ProgramElement.ValueId > 0))
                     {
-                        element.ProgramElement.Metadata = pkbApi.GetVariableName(element.ProgramElement.ValueId);
+                        element.ProgramElement.Metadata = element.ProgramElement.Type == SpaApi.StatementType.VAR ? pkbApi.GetVariableName(element.ProgramElement.ValueId) : pkbApi.GetProcedureName(element.ProgramElement.ValueId);
                     }
 
                     return variable.Elements.Where(x => x.ProgramElement.Metadata is not null)
-                        .Select(x => x.ProgramElement.Metadata!).ToList();
+                        .Select(x => x.ProgramElement.Metadata!).Distinct().ToList();
                 }
             }
 
             throw new NotSupportedException("Wrong issues");
-        }
-
-        public void EvaluateUses(IPKBInterface pkbApi, List<EvaluatedVariable> variables)
-        {
-            EvaluateRelation(pkbApi, variables, (pkbApi, leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber)
-                => pkbApi.Uses(leftStatementType, leftStatementNumber, rightStatementType, rightStatementNumber));
         }
 
         private void EvaluateRelation(IPKBInterface pkbApi, List<EvaluatedVariable> variables,
@@ -243,6 +418,27 @@ namespace SPA.PQL.QueryElements {
                 selectedVariable = variables.First(x => x.VariableName == reference.VariableName);
 
                 return selectedVariable.Elements.Select(x => x.ProgramElement.StatementNumber).Distinct().ToList();
+            }
+
+            return [];
+        }
+        
+        private static List<uint> GetValueIds(PQLSuchThatConditionReference reference, List<EvaluatedVariable> variables,
+            out EvaluatedVariable? selectedVariable)
+        {
+            selectedVariable = null;
+
+            if (reference.Type == PQLSuchThatConditionReferenceType.AnyValue)
+                return [(uint)SpaApi.StatementValueType.UNDEFINED];
+
+            if (reference.Type == PQLSuchThatConditionReferenceType.Integer)
+                return [(uint)reference.IntValue!.Value];
+
+            if (reference.Type == PQLSuchThatConditionReferenceType.Variable)
+            {
+                selectedVariable = variables.First(x => x.VariableName == reference.VariableName);
+
+                return selectedVariable.Elements.Select(x => x.ProgramElement.ValueId).Distinct().ToList();
             }
 
             return [];

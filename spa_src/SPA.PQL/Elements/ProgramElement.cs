@@ -7,5 +7,10 @@ namespace SPA.PQL.Elements {
         public uint StatementNumber { get; set; }
         public uint ValueId { get; set; }
         public string? Metadata { get; set; }
+
+        public override string ToString()
+        {
+            return string.IsNullOrWhiteSpace(Metadata) ? StatementNumber.ToString() : Metadata;
+        }
     }
 }
