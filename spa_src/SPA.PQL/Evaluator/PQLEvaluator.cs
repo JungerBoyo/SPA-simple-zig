@@ -9,37 +9,39 @@ namespace SPA.PQL.Evaluator;
 public sealed class PQLEvaluator : IDisposable {
     private static readonly PQLEvaluatorOptions DefaultOptions = new PQLEvaluatorOptions();
     private readonly IPKBInterface _pkbApi;
-    private readonly PQLQuery _query;
+    private PQLQuery _query;
     private readonly PQLEvaluatorOptions _options;
+    private readonly List<ProgramElement> _programElements;
 
     private List<PQLBaseCondition>? _freeConditions = null;
 
-    public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi)
+    public PQLEvaluator(IPKBInterface pkbApi, string simpleProgramFilePath)
     {
-        _options = DefaultOptions;
+        _options ??= DefaultOptions;
+
         _pkbApi = pkbApi;
-        var parser = new PQLParser();
-        _query = parser.Parse(pqlQuery);
+        _programElements = _pkbApi.Init(simpleProgramFilePath);
     }
 
-    public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi, Action<PQLEvaluatorOptions> options)
+    public PQLEvaluator(IPKBInterface pkbApi, string simpleProgramFilePath, Action<PQLEvaluatorOptions> options) : this(pkbApi, simpleProgramFilePath)
     {
         _options = new PQLEvaluatorOptions();
         options.Invoke(_options);
-
-        _pkbApi = pkbApi;
-        var parser = new PQLParser();
-        _query = parser.Parse(pqlQuery);
     }
 
-    public PQLQueryValidationResult ValidateQuery()
+    public PQLQueryValidationResult ValidateQuery(string pqlQuery)
     {
+        var parser = new PQLParser();
+        _query = parser.Parse(pqlQuery);
         return _query.ValidateQuery();
     }
 
-    public QueryResult Evaluate(string simpleProgramFilePath)
+    public QueryResult Evaluate()
     {
-        var programElements = _pkbApi.Init(simpleProgramFilePath);
+        if (_query is null)
+        {
+            throw new NotValidatedException();
+        }
 
         if (_options.RemoveFreeVariables)
         {
@@ -53,7 +55,7 @@ public sealed class PQLEvaluator : IDisposable {
             BuildEvaluationTree();
         }
 
-        var loadedVariables = InitVariables(programElements).ToList();
+        var loadedVariables = InitVariables(_programElements).ToList();
         var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
         bool wasInterrupted = false;
         foreach (var condition in _query.Conditions)

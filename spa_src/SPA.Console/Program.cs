@@ -3,19 +3,31 @@ using SPA.PQL.Abstractions;
 using SPA.PQL.Evaluator;
 using static System.Console;
 
-const string simpleProgram = "procedure p {\nx=1;\nx = 1;\n}";
-const string pqlQuery = "assign a, b;\nSelect a such that Parent(_, b)";
+var path = args[0];
 
-var path = $"{AppContext.BaseDirectory}simple.txt";
-File.WriteAllText(path, simpleProgram);
+using var evaluator = new PQLEvaluator(new PKBInterface(), path);
 
-using var evaluator = new PQLEvaluator(pqlQuery, new PKBInterface());
-var validationResult = evaluator.ValidateQuery();
+bool isProgramEnd = false;
 
-if (validationResult.Errors.Count > 0)
-    return;
+WriteLine("Ready");
 
-var result = evaluator.Evaluate(path);
-WriteLine(result.ToString());
-WriteLine("Press any key to exit...");
-ReadKey();
+while (!isProgramEnd)
+{
+    var statements = ReadLine();
+    var query = ReadLine();
+    var pqlQuery = statements + query;
+    var validationResult = evaluator.ValidateQuery(pqlQuery);
+    if (validationResult.Errors.Count > 0)
+    {
+        Write("#");
+        foreach(var error in validationResult.Errors)
+        {
+            Write(error);
+        }
+    }
+    else
+    {
+        var result = evaluator.Evaluate();
+        WriteLine(result.ToString());
+    }
+}

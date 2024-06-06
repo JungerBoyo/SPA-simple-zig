@@ -33,4 +33,8 @@
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
+
+    <PropertyGroup Condition=" '$(OS)' == 'Unix' ">
+        <DefineConstants>LINUX</DefineConstants>
+    </PropertyGroup>
 </Project>

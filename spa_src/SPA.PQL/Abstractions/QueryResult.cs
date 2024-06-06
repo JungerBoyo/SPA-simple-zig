@@ -10,6 +10,6 @@ public abstract class QueryResult(IEnumerable<string> queries)
             return "Not computed";
 
         var resultsList = Results.ToList();
-        return $"{string.Join("\n", queries)}\n{(resultsList.Count == 0 ? "none" : string.Join("\n", resultsList))}";
+        return string.Join(", ", resultsList);
     }
 }
