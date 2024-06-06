@@ -70,28 +70,33 @@ fn checkResult(pkb: *Pkb, buffer: *const [4]u8, expected: u32, convert: bool) !v
 //
 pub fn main() !void {
     const simple = 
-    \\procedure Second {
-    \\  x = 0;
-    \\  i = 5;
-    \\  while i {
-    \\      x = x + 2 * y;
-    \\      call Third;
-    \\      i = i - 1;
+    \\procedure Main {
+    \\  call Init;
+    \\  width = 1;
+    \\  height = 0;
+    \\  tmp = 0;
+    \\  call Random;
+    \\  while I {
+    \\    x1 = width + incre + left;
+    \\    x2 = x1 + incre + right;
+    \\    y1 = height + incre * top;
+    \\    y2 = y1 + incre * bottom;
+    \\    area = width * height;
     \\  }
-    \\  if x then {
-    \\      x = x + 1;
-    \\  } else {
-    \\      z = 1;
-    \\  }
-    \\  z = z + x + i;
-    \\  y = z + 2;
-    \\  x = x * y + z;
     \\}
-    \\procedure Third {
-    \\  j = 1;
+    \\procedure Init {
+    \\  x = 0;
+    \\}
+    \\procedure Random {
+    \\  x = 0;
     \\}
     ;
 
     var pkb = try getPkb(simple[0..]);
     defer pkb.deinit();
+
+    var result_buffer: [1024]u8 = .{0} ** 1024;
+    var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
+
+    try checkExecute(pkb, api.parent, &result_buffer_stream, .NONE, 6, null, .NONE, 7, null, 1);
 }
