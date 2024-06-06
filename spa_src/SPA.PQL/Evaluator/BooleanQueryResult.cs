@@ -5,7 +5,7 @@ namespace SPA.PQL.Evaluator {
     {
         public BooleanQueryResult(IEnumerable<string> queries, IEnumerable<bool> results) : base(queries)
         {
-            Results = results.Select(x => x ? "True" : "False").ToList();
+            Results = results.Select(x => x ? "true" : "false").ToList();
         }
     }
 }
