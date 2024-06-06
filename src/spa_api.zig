@@ -73,6 +73,7 @@ pub export fn GetProcName(proc_id: c_uint) callconv(.C) [*:0]const u8 {
         if (value.ast.proc_table.getByIndex(proc_id)) |str| {
             _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
             _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+            result_buffer_stream.reset();
             return @ptrCast(result_buffer[0..].ptr);
         } else {
             error_code = @intFromEnum(ErrorEnum.PROC_ID_OUT_OF_BOUNDS);
@@ -90,6 +91,7 @@ pub export fn GetVarName(var_id: c_uint) callconv(.C) [*:0]const u8 {
         if (value.ast.var_table.getByIndex(var_id)) |str| {
             _ = result_buffer_stream.writer().write(str[0..]) catch unreachable;
             _ = result_buffer_stream.writer().writeByte(0) catch unreachable;
+            result_buffer_stream.reset();
             return @ptrCast(result_buffer[0..].ptr);
         } else {
             error_code = @intFromEnum(ErrorEnum.VAR_ID_OUT_OF_BOUNDS);

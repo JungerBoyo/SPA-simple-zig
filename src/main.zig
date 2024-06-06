@@ -98,5 +98,8 @@ pub fn main() !void {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
+    try std.testing.expect(std.mem.eql(u8, pkb.ast.var_table.getByIndex(0).?, "width"));
+    try std.testing.expect(std.mem.eql(u8, pkb.ast.var_table.getByIndex(1).?, "height"));
+
     try checkExecute(pkb, api.parent, &result_buffer_stream, .NONE, 6, null, .NONE, 7, null, 1);
 }

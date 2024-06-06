@@ -12,16 +12,10 @@ if (result != 0) {
     return;
 } 
 
-UIntPtr result_ptr = SpaApi.Follows(
-    0, 1, "",
-    0, 2, ""
-);
+Console.WriteLine($"x: {Marshal.PtrToStringAnsi(SpaApi.GetVarName(0))}");
+Console.WriteLine($"y: {Marshal.PtrToStringAnsi(SpaApi.GetVarName(1))}");
+Console.WriteLine($"z: {Marshal.PtrToStringAnsi(SpaApi.GetVarName(2))}");
 
-if (MemoryReader.ReadUInt32(result_ptr) != 1) {
-    Console.WriteLine("Follows failed!");
-} else {
-    Console.WriteLine("Follows succeeded!");
-}
 result = SpaApi.Deinit();
 
 if (result != 0) {

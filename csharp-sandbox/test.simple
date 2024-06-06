@@ -8,10 +8,13 @@ procedure Second {
   }
   if x then {
       x = x + 1;
-  } else
+  } else {
       z = 1;
   }
   z = z + x + i;
   y = z + 2;
   x = x * y + z;
+}
+procedure Third {
+  x = 1;
 }
