@@ -1,0 +1,10 @@
+procedure Main {
+    call Init;
+    width = 1;
+    height = 2;
+	test = 4;
+}
+
+procedure Init {
+    width = 1;
+}

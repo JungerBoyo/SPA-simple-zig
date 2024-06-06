@@ -181,7 +181,7 @@ public sealed class PQLParserTests {
         
         //assert
         Assert.NotNull(result);
-        Assert.Equal(2, result.VariableNames.Length);
+        Assert.Equal(2, result.VariableNames.Count);
         Assert.Equal("a1", result.VariableNames[0]);
         Assert.Equal("a2", result.VariableNames[1]);
     }

@@ -11,7 +11,7 @@ public sealed class PQLEvaluator : IDisposable {
     private readonly IPKBInterface _pkbApi;
     private readonly PQLQuery _query;
     private readonly PQLEvaluatorOptions _options;
-    
+
     private List<PQLBaseCondition>? _freeConditions = null;
 
     public PQLEvaluator(string pqlQuery, IPKBInterface pkbApi)
@@ -55,17 +55,25 @@ public sealed class PQLEvaluator : IDisposable {
 
         var loadedVariables = InitVariables(programElements).ToList();
         var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
+        bool wasInterrupted = false;
         foreach (var condition in _query.Conditions)
         {
-            if (loadedVariables.Any(x => x.Elements.Count == 0)) break;
-            
+            if (loadedVariables.Any(x => x.Elements.Count == 0))
+            {
+                loadedVariables.ForEach(x => x.Elements.Clear());
+                wasInterrupted = true;
+                break;
+            }
+
             try
             {
                 condition.Evaluate(_pkbApi, loadedVariables);
+                UpdateVariablesBasedOnDependedValues(loadedVariables);
             }
             catch (EvaluationException)
             {
                 loadedVariables.ForEach(x => x.Elements.Clear());
+                wasInterrupted = true;
                 break;
             }
         }
@@ -73,27 +81,50 @@ public sealed class PQLEvaluator : IDisposable {
         if (_query.QueryResult.IsBooleanResult)
         {
             return new BooleanQueryResult(compiledRelations,
-                [loadedVariables.All(x => x.Elements.Count > 0)]);
+                [!wasInterrupted && loadedVariables.All(x => x.Elements.Count > 0)]);
         }
 
-        if (_query.QueryResult.VariableNames.Length == 1)
+        if (_query.QueryResult.VariableNames.Count == 1)
         {
             var data = loadedVariables
                 .First(x => x.VariableName == _query.QueryResult.VariableNames[0]).Elements
-                .Select(x => x.StatementNumber)
+                .Select(x => x.ProgramElement.StatementNumber)
                 .ToList();
 
             return new VariableQueryResult(compiledRelations, data);
         }
-
-        //TODO: Implement tuple return type
+        else
+        {
+            // var temp = loadedVariables.Where(x => _query.QueryResult.VariableNames.Contains(x.VariableName))
+            //     .OrderBy(x => _query.QueryResult.VariableNames.IndexOf(x.VariableName))
+            //     .Select(x => );
+        }
 
         return null!;
     }
 
+    private void UpdateVariablesBasedOnDependedValues(List<EvaluatedVariable> loadedVariables)
+    {
+        foreach (var variable in loadedVariables)
+        {
+            for (int i = 0; i < variable.Elements.Count; i++)
+            {
+                var element = variable.Elements[i];
+                if (element.Depends.Count == 0) continue;
+
+                foreach (var depend in element.Depends)
+                {
+                    if (depend.Key.Elements.All(x => x.ProgramElement != depend.Value))
+                    {
+                        variable.Elements.Remove(element);
+                    }
+                }
+            }
+        }
+    }
+
     private void BuildEvaluationTree()
     {
-        
     }
 
     private void RemoveFreeVariables()
@@ -111,7 +142,7 @@ public sealed class PQLEvaluator : IDisposable {
                 VariableName = variable.Name,
                 StatementType = variable.EntityType,
                 Elements = elements.Where(x => x.Type == variable.EntityType || variable.EntityType == SpaApi.StatementType.NONE)
-                    .ToList(),
+                    .Select(x => new EvaluatorVariableValue(x)).ToList(),
             };
         }
     }
