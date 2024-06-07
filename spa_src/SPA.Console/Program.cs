@@ -13,21 +13,29 @@ WriteLine("Ready");
 
 while (!isProgramEnd)
 {
-    var statements = ReadLine();
-    var query = ReadLine();
-    var pqlQuery = statements + query;
-    var validationResult = evaluator.ValidateQuery(pqlQuery);
-    if (validationResult.Errors.Count > 0)
+    try
     {
-        Write("#");
-        foreach(var error in validationResult.Errors)
+        var statements = ReadLine();
+        var query = ReadLine();
+        var pqlQuery = statements + query;
+        var validationResult = evaluator.ValidateQuery(pqlQuery);
+        if (validationResult.Errors.Count > 0)
         {
-            Write(error);
+            Write("#");
+            foreach (var error in validationResult.Errors)
+            {
+                Write(error);
+            }
+            Write("\n");
+        }
+        else
+        {
+            var result = evaluator.Evaluate();
+            WriteLine(result.ToString());
         }
     }
-    else
+    catch (Exception ex)
     {
-        var result = evaluator.Evaluate();
-        WriteLine(result.ToString());
+        WriteLine($"# {ex.Message}");
     }
 }
