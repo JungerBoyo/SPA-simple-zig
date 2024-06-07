@@ -31,7 +31,7 @@ while (!isProgramEnd)
         else
         {
             var result = evaluator.Evaluate();
-            WriteLine(result.ToString());
+            WriteLine(result?.ToString());
         }
     }
     catch (Exception ex)
