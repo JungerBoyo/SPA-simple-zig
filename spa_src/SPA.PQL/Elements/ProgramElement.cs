@@ -10,7 +10,7 @@ namespace SPA.PQL.Elements {
 
         public override string ToString()
         {
-            return string.IsNullOrWhiteSpace(Metadata) ? StatementNumber.ToString() : Metadata;
+            return Type == SpaApi.StatementType.VAR || Type == SpaApi.StatementType.PROCEDURE ? Metadata! : StatementNumber.ToString();
         }
     }
 }
