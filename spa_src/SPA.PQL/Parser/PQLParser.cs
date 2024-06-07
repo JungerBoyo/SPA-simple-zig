@@ -119,7 +119,7 @@ namespace SPA.PQL.Parser {
 
             foreach (var conditionGroup in conditionSubstrings)
             {
-                foreach (var condition in conditionGroup.Value.Split("and", StringSplitOptions.TrimEntries))
+                foreach (var condition in conditionGroup.Value.SplitAt("\\sand\\s", StringSplitOptions.TrimEntries))
                 {
                     switch (conditionGroup.Key)
                     {

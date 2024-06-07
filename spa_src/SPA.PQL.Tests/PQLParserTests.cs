@@ -356,4 +356,20 @@ public sealed class PQLParserTests {
         //assert
         Assert.Empty(validationResult.Errors);
     }
+
+    [Fact]
+    public void Should_Not_Return_Validation_Errors2()
+    {
+        //prepare
+        var parser = new PQLParser();
+        var expression = "variable a; Select a with a.varName = \"Random\"";
+
+        //act
+        var query = parser.Parse(expression);
+
+        var validationResult = query.ValidateQuery();
+        
+        //assert
+        Assert.Empty(validationResult.Errors);
+    }
 }
