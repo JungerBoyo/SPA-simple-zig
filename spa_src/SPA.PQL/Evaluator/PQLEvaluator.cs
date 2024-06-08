@@ -139,13 +139,20 @@ public sealed class PQLEvaluator : IDisposable {
     {
         foreach (var variable in _query.Variables)
         {
-            yield return new EvaluatedVariable()
+            var partResult = new EvaluatedVariable()
             {
                 VariableName = variable.Name,
                 StatementType = variable.EntityType,
                 Elements = elements.Where(x => x.Type == variable.EntityType || variable.EntityType == SpaApi.StatementType.NONE)
                     .Select(x => new EvaluatorVariableValue(x)).ToList(),
             };
+
+            if (partResult.StatementType == SpaApi.StatementType.VAR || partResult.StatementType == SpaApi.StatementType.PROCEDURE)
+            {
+                partResult.Elements = partResult.Elements.DistinctBy(x => x.ProgramElement.ValueId).ToList();
+            }
+            
+            yield return partResult;
         }
     }
 
