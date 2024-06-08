@@ -397,7 +397,7 @@ test "parent*" {
     var result_buffer: [1024]u8 = .{0} ** 1024;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
     
-    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .NONE, 6, null, 1);
+    try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .NONE, 3, null, .NONE, 6, null, 1);
     try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, 3, null, .ASSIGN, 6, null, 1);
 
     try checkExecuteFollowsParent(pkb, api.parentTransitive, &result_buffer_stream, .IF, common.STATEMENT_SELECTED, null, .NONE, 6, null, 1);

@@ -18,7 +18,7 @@ const Self = @This();
 pub const Error = 
     ProcVarTable.Error || 
     ProcMap.Error ||
-    error { PARSER_OUT_OF_MEMORY, INT_OVERFLOW } ||
+    error { PARSER_OUT_OF_MEMORY, INT_OVERFLOW, CALLED_NULL_PROC } ||
     ExpressionParseError ||
     AssignmentParseError || 
     CallParseError ||
@@ -75,6 +75,14 @@ pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token, err_log_writ
     self.proc_map = try ProcMap.init(internal_allocator);
 
     return self;
+}
+
+fn validate(ast: *AST) Error!void {
+    for (ast.nodes) |node| {
+        if (node.type == .CALL and ast.proc_table.getByIndex(node.value_id_or_const) == null) {
+            return error.CALLED_NULL_PROC;
+        }
+    }
 }
 
 fn onError(self: *Self, message: []const u8) void {
@@ -517,15 +525,13 @@ pub fn parse(self: *Self) Error!*AST {
                 ast.statement_map[node.metadata.statement_id] = i_nodes;
             }
 
-            if (node.type == .CALL) {
-                const parent_proc_index = ast.findParentProcedure(@intCast(i_nodes));
-                const parent_proc_node = ast.nodes[parent_proc_index];
-                self.proc_map.setCalls(parent_proc_node.value_id_or_const, node.value_id_or_const);
-            }
-
             i_nodes += 1;
         }
     }
+
+    try validate(ast);
+
+    ast.buildCallsProcMap();
 
     return ast;
 }

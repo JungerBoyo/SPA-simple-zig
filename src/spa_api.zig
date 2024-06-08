@@ -305,6 +305,7 @@ pub const ErrorEnum = enum(u32) {
     NODE_ID_OUT_OF_BOUNDS,
     PROC_ID_OUT_OF_BOUNDS,
     VAR_ID_OUT_OF_BOUNDS,
+    CALLED_NULL_PROC,
     PROC_NOT_FOUND,
     VAR_NOT_FOUND,
     TRIED_TO_USE_EMPTY_INSTANCE,
@@ -421,7 +422,6 @@ fn execRelationCalls(
             } else {
                 error_code = @intFromEnum(errorToEnum(error.UNDEFINED));
             }
-
             return 0x0;
         };
         result_buffer_stream.reset();

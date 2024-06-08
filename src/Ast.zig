@@ -8,13 +8,6 @@ pub const ProcMap = @import("ProcMap.zig");
 
 const Self = @This();
 
-pub const Error = error {
-    UNSUPPORTED_COMBINATION,    
-};
-
-pub const STATEMENT_UNDEFINED: u32 = 0xFF_FF_FF_FF;
-pub const STATEMENT_SELECTED: u32 = 0x0;
-
 arena_allocator: std.heap.ArenaAllocator,
 nodes: []Node,
 statement_map: []usize,
@@ -48,6 +41,16 @@ pub fn deinit(self: *Self) void {
     self.proc_table.deinit();
     self.proc_map.deinit();
     self.arena_allocator.child_allocator.destroy(self);
+}
+
+pub fn buildCallsProcMap(self: *Self) void {
+    for (self.nodes, 0..) |*node, i| {
+        if (node.type == .CALL) {
+            const parent_proc_index = self.findParentProcedure(@intCast(i));
+            const parent_proc_node = self.nodes[parent_proc_index];
+            self.proc_map.setCalls(parent_proc_node.value_id_or_const, node.value_id_or_const);
+        }
+    }
 }
 
 pub fn findParentProcedure(self: *Self, node_index: NodeId) NodeId {
