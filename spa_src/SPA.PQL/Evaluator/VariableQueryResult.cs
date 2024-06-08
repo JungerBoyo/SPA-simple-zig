@@ -10,5 +10,9 @@ public sealed class VariableQueryResult : QueryResult {
     {
         BaseResults = results.ToList();
         Results = BaseResults.Select(x => x.ToString()).ToList();
+        if (!Results.Any())
+        {
+            Results = new[] { "none" };
+        }
     }
 }

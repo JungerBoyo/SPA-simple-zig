@@ -23,7 +23,8 @@ public sealed class PQLEvaluator : IDisposable {
         _programElements = _pkbApi.Init(simpleProgramFilePath);
     }
 
-    public PQLEvaluator(IPKBInterface pkbApi, string simpleProgramFilePath, Action<PQLEvaluatorOptions> options) : this(pkbApi, simpleProgramFilePath)
+    public PQLEvaluator(IPKBInterface pkbApi, string simpleProgramFilePath, Action<PQLEvaluatorOptions> options) : this(pkbApi,
+        simpleProgramFilePath)
     {
         _options = new PQLEvaluatorOptions();
         options.Invoke(_options);
@@ -48,12 +49,7 @@ public sealed class PQLEvaluator : IDisposable {
             RemoveFreeVariables();
         }
 
-        if (_options.BuildEvaluationTree)
-        {
-            _freeConditions = new List<PQLBaseCondition>();
-
-            BuildEvaluationTree();
-        }
+        BuildEvaluationTree();
 
         var loadedVariables = InitVariables(_programElements).ToList();
         var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
@@ -107,6 +103,7 @@ public sealed class PQLEvaluator : IDisposable {
 
     private void UpdateVariablesBasedOnDependedValues(List<EvaluatedVariable> loadedVariables)
     {
+        var toRemove = new List<EvaluatorVariableValue>();
         foreach (var variable in loadedVariables)
         {
             for (int i = 0; i < variable.Elements.Count; i++)
@@ -114,19 +111,52 @@ public sealed class PQLEvaluator : IDisposable {
                 var element = variable.Elements[i];
                 if (element.Depends.Count == 0) continue;
 
-                foreach (var depend in element.Depends)
+                bool markedToDelete = true;
+
+                foreach (var depend in element.Depends.Where(x => x.Key != variable))
                 {
-                    if (depend.Key.Elements.All(x => x.ProgramElement != depend.Value))
+                    if (depend.Key.Elements.Any(x => x.ProgramElement == depend.Value))
                     {
-                        variable.Elements.Remove(element);
+                        markedToDelete = false;
                     }
                 }
+
+                if (markedToDelete)
+                {
+                    toRemove.Add(element);
+                }
             }
+
+            variable.Elements.RemoveAll(x => toRemove.Contains(x));
+
+            toRemove.Clear();
         }
     }
 
     private void BuildEvaluationTree()
     {
+        var tree = new List<List<PQLBaseCondition>>();
+
+        var used = _query.QueryResult.VariableNames;
+
+        do
+        {
+            tree.Add(GetConditionsThatUseVariables(used, tree.SelectMany(x => x), out used));
+        } while (tree[^1].Count > 0);
+
+        _query.Conditions = tree.SelectMany(x => x).Reverse().ToList();
+    }
+
+    private List<PQLBaseCondition> GetConditionsThatUseVariables(List<string> variableNames, IEnumerable<PQLBaseCondition> usedConditions,
+        out List<string> nextVariables)
+    {
+        var conditions = _query.Conditions.Except(usedConditions);
+
+        var result = conditions.Where(x => x.GetNamesOfVariablesUsed().Intersect(variableNames).Any()).ToList();
+
+        nextVariables = result.SelectMany(x => x.GetNamesOfVariablesUsed()).Except(variableNames).ToList();
+
+        return result.ToList();
     }
 
     private void RemoveFreeVariables()
@@ -151,7 +181,7 @@ public sealed class PQLEvaluator : IDisposable {
             {
                 partResult.Elements = partResult.Elements.DistinctBy(x => x.ProgramElement.ValueId).ToList();
             }
-            
+
             yield return partResult;
         }
     }
