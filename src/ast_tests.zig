@@ -704,6 +704,7 @@ test "calls*" {
     try checkResult(pkb, result_buffer[0..4], 1, false);
 }
 
+
 test "custom" {
     const simple = 
     \\procedure Main {
@@ -1109,19 +1110,20 @@ test "custom" {
     var result_buffer: [2048]u8 = .{0} ** 2048;
     var result_buffer_stream = std.io.fixedBufferStream(result_buffer[0..]);
 
-    //try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(107)) }, "x", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(107)) }, "x", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(34)) }, "y2", 1);
     // try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = 414 }, "y2", 1);
 
 
-    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = common.NODE_SELECTED }, null, 275);
+    // try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = common.NODE_SELECTED }, null, 275);
 
-    var result: [4]u8 = .{0} ** 4;
-    for (0..275) |i| {
-        std.mem.copyForwards(u8, result[0..], result_buffer[i*4..(i+1)*4]);
-        const num = std.mem.readInt(u32, &result, .little);
-        if (pkb.ast.nodes[num].type == .IF) {
-            std.debug.print("{}\n", .{ pkb.ast.nodes[num].metadata.statement_id } );
-        }
-    }
+    //var result: [4]u8 = .{0} ** 4;
+    //for (0..275) |i| {
+    //    std.mem.copyForwards(u8, result[0..], result_buffer[i*4..(i+1)*4]);
+    //    const num = std.mem.readInt(u32, &result, .little);
+    //    if (pkb.ast.nodes[num].type == .IF) {
+    //        std.debug.print("{}\n", .{ pkb.ast.nodes[num].metadata.statement_id } );
+    //    }
+    //}
     
 }

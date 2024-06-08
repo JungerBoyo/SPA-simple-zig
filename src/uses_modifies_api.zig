@@ -114,7 +114,13 @@ fn refDefNodeDefVar(pkb: *Pkb,
     node_id: u32, var_name: []const u8,
 ) !u32 {
     if (pkb.ast.var_table.hashmap.get(var_name)) |var_id| {
-        if (table[node_id].isSet(var_id)) {
+        const node = pkb.ast.nodes[node_id];
+        const check_result = if (node.type == .CALL)
+                table[pkb.ast.proc_map.map.items[node.value_id_or_const].node_index].isSet(var_id)
+            else
+                table[node_id].isSet(var_id);
+
+        if (check_result) {
             try result_writer.writeInt(ResultIntType, @as(ResultIntType, 1), .little);
             return 1;
         }

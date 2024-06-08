@@ -141,11 +141,64 @@ pub fn build(self: *Self) Error!void {
     for (self.ast.nodes, 0..) |node, node_index| {
         if (node.type == .CALL) {
             const proc_node_index = self.ast.proc_map.get(node.value_id_or_const).node_index;
-            self.setUsesBitVector(proc_node_index, node_index);
-            self.setModifiesBitVector(proc_node_index, node_index);
+
+            var parent_index = self.ast.findParent(@intCast(node_index));
+            var parent_node = self.ast.nodes[parent_index];
+            while (parent_node.type != .PROCEDURE) {
+                if (parent_node.type == .IF or parent_node.type == .WHILE) {
+                    self.setModifiesBitVector(proc_node_index, parent_index);
+                    self.setUsesBitVector(proc_node_index, parent_index);
+                }
+                parent_index = self.ast.findParent(@intCast(parent_index));
+                parent_node = self.ast.nodes[parent_index];
+            }
+
+            const proc_parent_index = parent_index;
+            const proc_parent_node = parent_node;
+            const proc_parent_id = proc_parent_node.value_id_or_const;
+            self.setModifiesBitVector(node_index, proc_parent_index);
+            self.setUsesBitVector(node_index, proc_parent_index);
+
+            var current_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
+                return error.PKB_OUT_OF_MEMORY;
+            defer current_proc_vector.deinit(self.arena_allocator.allocator());
+
+            current_proc_vector.set(proc_parent_id);
+
+            var new_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
+                return error.PKB_OUT_OF_MEMORY;
+            defer current_proc_vector.deinit(self.arena_allocator.allocator());
+
+            while (current_proc_vector.findFirstSet()) |_| {
+                new_proc_vector.unsetAll();
+                for (self.ast.proc_map.map.items, 0..) |*item, proc_id| {
+                    var tmp_proc_vector = current_proc_vector.clone(self.arena_allocator.allocator()) catch
+                        return error.PKB_OUT_OF_MEMORY;
+                    defer tmp_proc_vector.deinit(self.arena_allocator.allocator());
+
+                    tmp_proc_vector.setIntersection(item.calls);
+                    if (tmp_proc_vector.findFirstSet()) |_| {
+                        new_proc_vector.set(proc_id);
+                        self.setModifiesBitVector(node_index, item.node_index);
+                        self.setUsesBitVector(node_index,  item.node_index);
+                    }
+                }
+                std.mem.swap(std.DynamicBitSetUnmanaged, &current_proc_vector, &new_proc_vector);
+            }
+            
+            // self.recursivelySetVectorsForCallers(node.value_id_or_const, node_index);
         }
     }
 }
+
+//fn recursivelySetVectorsForCallers(self: *Self, proc_id: u32, src_node_index: u32) void {
+//    for (self.ast.proc_map.map.items, 0..) |*entry, caller_proc_id| {
+//        if (entry.calls.isSet(@intCast(proc_id))) {
+//            self.setModifiesBitVector(src_node_index, entry.node_index);
+//            self.setUsesBitVector(src_node_index, entry.node_index);
+//        }        
+//    }
+//}
 //
 //    pub fn deinit(self: *Self) void {
 //        self.arena_allocator.deinit();
