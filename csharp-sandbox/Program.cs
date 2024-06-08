@@ -13,6 +13,8 @@ if (result != 0) {
 } 
 
 
+SpaApi.Uses(107, "x")
+
 for (uint i = 0; i < SpaApi.GetVarTableSize(); i++)
 {
     Console.WriteLine($"{Marshal.PtrToStringAnsi(SpaApi.GetVarName(i))}");

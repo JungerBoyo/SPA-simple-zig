@@ -104,6 +104,21 @@ pub export fn GetVarName(var_id: c_uint) callconv(.C) [*:0]const u8 {
 }
 
 
+// Returns statement's node id
+pub export fn GetStatementNodeId(stmt_id: c_uint) callconv(.C) c_uint {
+    if (instance) |value| {
+        if (stmt_id < value.ast.statement_map.len) {
+            return @intCast(value.ast.statement_map[stmt_id]);
+        } else {
+            error_code = @intFromEnum(ErrorEnum.STMT_ID_OUT_OF_BOUNDS);
+        }
+    } else {
+        error_code = @intFromEnum(ErrorEnum.TRIED_TO_USE_EMPTY_INSTANCE);
+    }
+    return 0;
+}
+
+
 // Takes path to SPA lang source file and creates PKB instance
 // based on it. MUST be called before any functions from the API are called.
 // Returns error code or OK.
@@ -292,6 +307,7 @@ pub const Error = error{
     SIMPLE_FILE_OPEN_ERROR, 
     TRIED_TO_DEINIT_EMPTY_INSTANCE,
     NODE_ID_OUT_OF_BOUNDS,
+    STMT_ID_OUT_OF_BOUNDS,
     PROC_ID_OUT_OF_BOUNDS,
     VAR_ID_OUT_OF_BOUNDS,
     TRIED_TO_USE_EMPTY_INSTANCE,
@@ -303,6 +319,7 @@ pub const ErrorEnum = enum(u32) {
     SIMPLE_FILE_OPEN_ERROR,
     TRIED_TO_DEINIT_EMPTY_INSTANCE,
     NODE_ID_OUT_OF_BOUNDS,
+    STMT_ID_OUT_OF_BOUNDS,
     PROC_ID_OUT_OF_BOUNDS,
     VAR_ID_OUT_OF_BOUNDS,
     CALLED_NULL_PROC,

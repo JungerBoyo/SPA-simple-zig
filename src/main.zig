@@ -72,23 +72,6 @@ pub fn main() !void {
     const simple = 
     \\procedure Main {
     \\  call Init;
-    \\  width = 1;
-    \\  height = 0;
-    \\  tmp = 0;
-    \\  call Random;
-    \\  while I {
-    \\    x1 = width + incre + left;
-    \\    x2 = x1 + incre + right;
-    \\    y1 = height + incre * top;
-    \\    y2 = y1 + incre * bottom;
-    \\    area = width * height;
-    \\  }
-    \\}
-    \\procedure Init {
-    \\  x = 0;
-    \\}
-    \\procedure Random {
-    \\  x = 0;
     \\}
     ;
 

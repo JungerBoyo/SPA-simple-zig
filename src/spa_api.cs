@@ -38,6 +38,7 @@ public sealed class SpaApi {
 		SIMPLE_FILE_OPEN_ERROR,
 		TRIED_TO_DEINIT_EMPTY_INSTANCE,
 		NODE_ID_OUT_OF_BOUNDS,
+    	STMT_ID_OUT_OF_BOUNDS,
 		PROC_ID_OUT_OF_BOUNDS,
 		VAR_ID_OUT_OF_BOUNDS,
 		CALLED_NULL_PROC,
@@ -150,16 +151,6 @@ public sealed class SpaApi {
 	public static extern NodeC GetNode(uint id);
 
 	/// <summary>
-	/// Returns node's value. Eg. in case of assign statement value
-	/// will be the name of the variable, and in case of procedure value
-	/// is going to be procedure name and so on. In case of failure,
-	/// return empty string and sets error code. ALWAYS copy string returned 
-	/// by this function. DO NOT rely on memory of this string!!!
-	/// </summary>
-	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
-	public static extern IntPtr GetNodeValue(uint id);
-
-	/// <summary>
 	/// Returns var name of id specified in Node structure.
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
@@ -170,6 +161,12 @@ public sealed class SpaApi {
 	/// </summary>
 	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
 	public static extern IntPtr GetProcName(uint id);
+
+	/// <summary>
+	// Returns statement's node id.
+	/// </summary>
+	[DllImport(SpaApiLibPath, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.None)]
+	public static extern uint GetStatementNodeId(uint stmt_id); 
 
 	/// <summary>
 	/// Follows relation. As parameters, takes statement type, id 

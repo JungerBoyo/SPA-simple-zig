@@ -79,7 +79,7 @@ pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token, err_log_writ
 
 fn validate(ast: *AST) Error!void {
     for (ast.nodes) |node| {
-        if (node.type == .CALL and ast.proc_table.getByIndex(node.value_id_or_const) == null) {
+        if (node.type == .CALL and !ast.proc_map.exists(node.value_id_or_const)) {
             return error.CALLED_NULL_PROC;
         }
     }
