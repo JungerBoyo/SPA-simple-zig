@@ -51,6 +51,34 @@ namespace SPA.PQL.Abstractions {
                 i++;
             }
 
+            var size = SpaApi.GetVarTableSize();
+            for (i = 0; i < size; i++)
+            {
+                if (!result.Any(x => x.ValueId == i && x.Type == SpaApi.StatementType.VAR))
+                {
+                    result.Add(new ProgramElement()
+                    {
+                        Type = SpaApi.StatementType.VAR,
+                        ValueId = i,
+                        Metadata = GetVariableName(i),
+                    });
+                }
+            }
+            
+            size = SpaApi.GetProcTableSize();
+            for (i = 0; i < size; i++)
+            {
+                if (!result.Any(x => x.ValueId == i && x.Type == SpaApi.StatementType.PROCEDURE))
+                {
+                    result.Add(new ProgramElement()
+                    {
+                        Type = SpaApi.StatementType.PROCEDURE,
+                        ValueId = i,
+                        Metadata = GetProcedureName(i),
+                    });
+                }
+            }
+            
             return result;
         }
 
