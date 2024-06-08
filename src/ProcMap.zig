@@ -44,6 +44,10 @@ pub fn setCalls(self: *Self, proc_id: ProcId, called_proc_id: ProcId) void {
     self.map.items[proc_id].calls.set(called_proc_id); 
 }
 
+pub fn exists(self: *Self, proc_id: ProcId) bool {
+    return proc_id < self.map.items.len;
+}
+
 pub fn get(self: *Self, proc_id: ProcId) Entry {
     return self.map.items[proc_id];
 }
