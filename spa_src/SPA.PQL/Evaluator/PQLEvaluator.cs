@@ -49,7 +49,8 @@ public sealed class PQLEvaluator : IDisposable {
             RemoveFreeVariables();
         }
 
-        BuildEvaluationTree();
+        if(!_query.QueryResult.IsBooleanResult)
+            BuildEvaluationTree();
 
         var loadedVariables = InitVariables(_programElements).ToList();
         var compiledRelations = _query.Conditions.Select(x => x.ToString() ?? string.Empty);
