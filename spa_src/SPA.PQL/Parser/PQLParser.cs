@@ -129,8 +129,6 @@ namespace SPA.PQL.Parser {
                         case ConditionType.With:
                             yield return ParseWithCondition(condition);
                             break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
                     }
                 }
             }
