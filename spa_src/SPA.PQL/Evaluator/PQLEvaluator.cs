@@ -145,6 +145,11 @@ public sealed class PQLEvaluator : IDisposable {
             tree.Add(GetConditionsThatUseVariables(used, tree.SelectMany(x => x), out used));
         } while (tree[^1].Count > 0);
 
+        if (tree.SelectMany(x => x).Count() < _query.Conditions.Count)
+        {
+            tree.Add(_query.Conditions.Except(tree.SelectMany(x => x)).ToList());
+        }
+        
         _query.Conditions = tree.SelectMany(x => x).Reverse().ToList();
     }
 
