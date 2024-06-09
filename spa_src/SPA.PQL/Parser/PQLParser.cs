@@ -89,7 +89,7 @@ namespace SPA.PQL.Parser {
         {
             foreach (var variableDeclaration in variableDeclarations)
             {
-                var tokens = variableDeclaration.SplitAt("\\s+");
+                var tokens = variableDeclaration.SingleSplitAt("\\s+");
                 if (tokens.Length != 2)
                     throw new InvalidVariableDeclarationException(variableDeclaration);
 

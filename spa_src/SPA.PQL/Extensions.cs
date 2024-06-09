@@ -4,6 +4,39 @@ namespace SPA.PQL {
     public static class Extensions {
         public static string[] SplitAt(this string str, string regex, StringSplitOptions options = StringSplitOptions.None)
         {
+            List<string> result = new List<string>();
+
+            int index = 0;
+            int lastIndex = 0;
+            foreach (Match match in Regex.Matches(str, regex))
+            {
+                result.Add(str.Substring(lastIndex, match.Index - lastIndex));
+                lastIndex = match.Index + match.Length;
+                index++;
+            }
+            
+            if (index == 0)
+                return [str];
+            else result.Add(str.Substring(lastIndex));
+            
+            if (options.HasFlag(StringSplitOptions.TrimEntries))
+            {
+                for (int i = 0; i < result.Count; i++)
+                {
+                    result[i] = result[i].Trim();
+                }
+            }
+
+            if (options.HasFlag(StringSplitOptions.RemoveEmptyEntries))
+            {
+                result.RemoveAll(string.IsNullOrWhiteSpace);
+            }
+
+            return result.ToArray();
+        }
+        
+        public static string[] SingleSplitAt(this string str, string regex, StringSplitOptions options = StringSplitOptions.None)
+        {
             var match = Regex.Match(str, regex);
 
             if (!match.Success)
@@ -13,7 +46,6 @@ namespace SPA.PQL {
                 return [str.Substring(0, match.Index)];
 
             List<string> result = [str.Substring(0, match.Index), str.Substring(match.Index + match.Length)];
-
             if (options.HasFlag(StringSplitOptions.TrimEntries))
             {
                 for (int i = 0; i < result.Count; i++)

@@ -46,6 +46,7 @@ namespace SPA.PQL.Abstractions {
                     LineNumber = temp.line_no,
                     StatementNumber = temp.statement_id,
                     ValueId = temp.value_id,
+                    Index = SpaApi.GetStatementNodeId(temp.statement_id),
                 });
 
                 i++;
@@ -64,7 +65,7 @@ namespace SPA.PQL.Abstractions {
                     });
                 }
             }
-            
+
             size = SpaApi.GetProcTableSize();
             for (i = 0; i < size; i++)
             {
@@ -78,7 +79,7 @@ namespace SPA.PQL.Abstractions {
                     });
                 }
             }
-            
+
             return result;
         }
 
@@ -156,7 +157,7 @@ namespace SPA.PQL.Abstractions {
 
         public bool Uses(uint stmt, string varName)
         {
-            var pointer = SpaApi.Modifies(stmt, varName);
+            var pointer = SpaApi.Uses(stmt, varName);
 
             if (pointer == 0)
                 return false;

@@ -115,7 +115,7 @@ namespace SPA.PQL.QueryElements {
 
             if (LeftReference.Type != PQLSuchThatConditionReferenceType.TextValue)
             {
-                var leftStatementNumbers = GetValueIds(LeftReference, variables, out var leftSelectedVariable);
+                var leftStatementNumbers = GetStatementIndexes(LeftReference, variables, out var leftSelectedVariable);
 
                 var pairs = new List<(uint, string)>();
 
@@ -132,15 +132,17 @@ namespace SPA.PQL.QueryElements {
 
                 if (leftSelectedVariable is not null)
                 {
-                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.ValueId));
-                    
+                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.Index));
+
                     if (rightSelectedVariable is not null)
                     {
                         foreach (var item in leftSelectedVariable.Elements)
                         {
-                            var temp = pairs.First(x => x.Item1 == item.ProgramElement.ValueId);
-                            var temp2 = rightSelectedVariable.Elements.First(x => x.ProgramElement.Metadata == temp.Item2);
-                            item.Depends.Add(KeyValuePair.Create(rightSelectedVariable, temp2.ProgramElement));
+                            foreach (var temp in pairs.Where(x => x.Item1 == item.ProgramElement.Index))
+                            {
+                                var temp2 = rightSelectedVariable.Elements.First(x => x.ProgramElement.Metadata == temp.Item2);
+                                item.Depends.Add(KeyValuePair.Create(rightSelectedVariable, temp2.ProgramElement));
+                            }
                         }
                     }
                 }
@@ -148,14 +150,16 @@ namespace SPA.PQL.QueryElements {
                 if (rightSelectedVariable is not null)
                 {
                     rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
-                    
+
                     if (leftSelectedVariable is not null)
                     {
                         foreach (var item in rightSelectedVariable.Elements)
                         {
-                            var temp = pairs.First(x => x.Item2 == item.ProgramElement.Metadata);
-                            var temp2 = leftSelectedVariable.Elements.First(x => x.ProgramElement.ValueId == temp.Item1);
-                            item.Depends.Add(KeyValuePair.Create(leftSelectedVariable, temp2.ProgramElement));
+                            foreach (var temp in pairs.Where(x => x.Item2 == item.ProgramElement.Metadata))
+                            {
+                                var temp2 = leftSelectedVariable.Elements.First(x => x.ProgramElement.Index == temp.Item1);
+                                item.Depends.Add(KeyValuePair.Create(leftSelectedVariable, temp2.ProgramElement));
+                            }
                         }
                     }
                 }
@@ -189,7 +193,7 @@ namespace SPA.PQL.QueryElements {
 
             if (LeftReference.Type != PQLSuchThatConditionReferenceType.TextValue)
             {
-                var leftStatementNumbers = GetStatementNumbers(LeftReference, variables, out var leftSelectedVariable);
+                var leftStatementNumbers = GetStatementIndexes(LeftReference, variables, out var leftSelectedVariable);
 
                 var pairs = new List<(uint, string)>();
 
@@ -206,13 +210,13 @@ namespace SPA.PQL.QueryElements {
 
                 if (leftSelectedVariable is not null)
                 {
-                    leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.StatementNumber));
+                    leftSelectedVariable.Elements.RemoveAll(x => pairs.All(y => y.Item1 != x.ProgramElement.Index));
 
                     if (rightSelectedVariable is not null)
                     {
                         foreach (var item in leftSelectedVariable.Elements)
                         {
-                            var temp = pairs.First(x => x.Item1 == item.ProgramElement.StatementNumber);
+                            var temp = pairs.First(x => x.Item1 == item.ProgramElement.Index);
                             var temp2 = rightSelectedVariable.Elements.First(x => x.ProgramElement.Metadata == temp.Item2);
                             item.Depends.Add(KeyValuePair.Create(rightSelectedVariable, temp2.ProgramElement));
                         }
@@ -228,7 +232,7 @@ namespace SPA.PQL.QueryElements {
                         foreach (var item in rightSelectedVariable.Elements)
                         {
                             var temp = pairs.First(x => x.Item2 == item.ProgramElement.Metadata);
-                            var temp2 = leftSelectedVariable.Elements.First(x => x.ProgramElement.StatementNumber == temp.Item1);
+                            var temp2 = leftSelectedVariable.Elements.First(x => x.ProgramElement.Index == temp.Item1);
                             item.Depends.Add(KeyValuePair.Create(leftSelectedVariable, temp2.ProgramElement));
                         }
                     }
@@ -288,14 +292,16 @@ namespace SPA.PQL.QueryElements {
                 if (leftSelectedVariable is not null)
                 {
                     leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.ValueId));
-                    
+
                     if (rightSelectedVariable is not null)
                     {
                         foreach (var item in leftSelectedVariable.Elements)
                         {
-                            var temp = pairs.First(x => x.Item1 == item.ProgramElement.ValueId);
-                            var temp2 = rightSelectedVariable.Elements.First(x => x.ProgramElement.Metadata == temp.Item2);
-                            item.Depends.Add(KeyValuePair.Create(rightSelectedVariable, temp2.ProgramElement));
+                            foreach (var temp in pairs.Where(x => x.Item1 == item.ProgramElement.ValueId))
+                            {
+                                var temp2 = rightSelectedVariable.Elements.Where(x => x.ProgramElement.Metadata == temp.Item2);
+                                item.Depends.AddRange(temp2.Select(x => KeyValuePair.Create(rightSelectedVariable, x.ProgramElement)));
+                            }
                         }
                     }
                 }
@@ -303,14 +309,16 @@ namespace SPA.PQL.QueryElements {
                 if (rightSelectedVariable is not null)
                 {
                     rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
-                    
+
                     if (leftSelectedVariable is not null)
                     {
                         foreach (var item in rightSelectedVariable.Elements)
                         {
-                            var temp = pairs.First(x => x.Item2 == item.ProgramElement.Metadata);
-                            var temp2 = leftSelectedVariable.Elements.First(x => x.ProgramElement.ValueId == temp.Item1);
-                            item.Depends.Add(KeyValuePair.Create(leftSelectedVariable, temp2.ProgramElement));
+                            foreach (var temp in pairs.Where(x => x.Item2 == item.ProgramElement.Metadata))
+                            {
+                                var temp2 = leftSelectedVariable.Elements.First(x => x.ProgramElement.ValueId == temp.Item1);
+                                item.Depends.Add(KeyValuePair.Create(leftSelectedVariable, temp2.ProgramElement));
+                            }
                         }
                     }
                 }
@@ -369,7 +377,7 @@ namespace SPA.PQL.QueryElements {
                 if (leftSelectedVariable is not null)
                 {
                     leftSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item1 == x.ProgramElement.ValueId));
-                    
+
                     if (rightSelectedVariable is not null)
                     {
                         foreach (var item in leftSelectedVariable.Elements)
@@ -384,7 +392,7 @@ namespace SPA.PQL.QueryElements {
                 if (rightSelectedVariable is not null)
                 {
                     rightSelectedVariable.Elements.RemoveAll(x => !pairs.Any(y => y.Item2 == x.ProgramElement.Metadata));
-                    
+
                     if (leftSelectedVariable is not null)
                     {
                         foreach (var item in rightSelectedVariable.Elements)
@@ -501,6 +509,28 @@ namespace SPA.PQL.QueryElements {
                 selectedVariable = variables.First(x => x.VariableName == reference.VariableName);
 
                 return selectedVariable.Elements.Select(x => x.ProgramElement.StatementNumber).Distinct().ToList();
+            }
+
+            return [];
+        }
+
+        private static List<uint> GetStatementIndexes(PQLSuchThatConditionReference reference, List<EvaluatedVariable> variables,
+            out EvaluatedVariable? selectedVariable)
+        {
+            selectedVariable = null;
+
+            if (reference.Type == PQLSuchThatConditionReferenceType.AnyValue)
+                return [(uint)SpaApi.StatementValueType.UNDEFINED];
+
+            if (reference.Type == PQLSuchThatConditionReferenceType.Integer)
+                return [(uint)reference.IntValue!.Value];
+
+            if (reference.Type == PQLSuchThatConditionReferenceType.Variable)
+            {
+                selectedVariable = variables.First(x => x.VariableName == reference.VariableName);
+
+                return selectedVariable.Elements.Select(x => x.ProgramElement.Index).Where(x => x.HasValue)
+                    .Select(x => x.Value).Distinct().ToList();
             }
 
             return [];

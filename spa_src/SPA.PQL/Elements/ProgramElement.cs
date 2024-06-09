@@ -7,6 +7,7 @@ namespace SPA.PQL.Elements {
         public uint StatementNumber { get; set; }
         public uint ValueId { get; set; }
         public string? Metadata { get; set; }
+        public uint? Index { get; set; }
 
         public override string ToString()
         {
