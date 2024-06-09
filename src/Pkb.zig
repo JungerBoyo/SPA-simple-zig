@@ -67,6 +67,12 @@ fn getUsesBitState(self: *Self, node_index: usize, var_index: usize) bool {
 }
 
 pub fn build(self: *Self) Error!void {
+    self.ast.buildCallsProcMap();
+    try self.buildRefTables();
+}
+
+
+fn buildRefTables(self: *Self) Error!void {
     for (self.ast.nodes, 0..) |node, node_index| {
         switch (node.type) {
         .IF, .WHILE => {
@@ -90,104 +96,63 @@ pub fn build(self: *Self) Error!void {
         },
         else => continue
         }
-
-        // next propagate uses bit vector to parents until it is not a procedure
-        var parent_index = self.ast.findParent(@intCast(node_index));
-        var parent_node = self.ast.nodes[parent_index];
-        while (parent_node.type != .PROCEDURE) {
-            if (parent_node.type == .IF or parent_node.type == .WHILE) {
-                self.setModifiesBitVector(node_index, parent_index);
-                self.setUsesBitVector(node_index, parent_index);
-            }
-            parent_index = self.ast.findParent(@intCast(parent_index));
-            parent_node = self.ast.nodes[parent_index];
-        }
-
-        // next propagate modifies bit to all procedures which call
-        // procedure in which assign is called (may be redundant)
-        const proc_parent_index = parent_index;
-        const proc_parent_node = parent_node;
-        const proc_parent_id = proc_parent_node.value_id_or_const;
-        self.setModifiesBitVector(node_index, proc_parent_index);
-        self.setUsesBitVector(node_index, proc_parent_index);
-
-        var current_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
-            return error.PKB_OUT_OF_MEMORY;
-        defer current_proc_vector.deinit(self.arena_allocator.allocator());
-
-        current_proc_vector.set(proc_parent_id);
-
-        var new_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
-            return error.PKB_OUT_OF_MEMORY;
-        defer current_proc_vector.deinit(self.arena_allocator.allocator());
-
-        while (current_proc_vector.findFirstSet()) |_| {
-            new_proc_vector.unsetAll();
-            for (self.ast.proc_map.map.items, 0..) |*item, proc_id| {
-                var tmp_proc_vector = current_proc_vector.clone(self.arena_allocator.allocator()) catch
-                    return error.PKB_OUT_OF_MEMORY;
-                defer tmp_proc_vector.deinit(self.arena_allocator.allocator());
-
-                tmp_proc_vector.setIntersection(item.calls);
-                if (tmp_proc_vector.findFirstSet()) |_| {
-                    new_proc_vector.set(proc_id);
-                    self.setModifiesBitVector(node_index, item.node_index);
-                    self.setUsesBitVector(node_index,  item.node_index);
-                }
-            }
-            std.mem.swap(std.DynamicBitSetUnmanaged, &current_proc_vector, &new_proc_vector);
-        }
+        const proc_parent_node = self.propagateRefBitVectorsToParents(@intCast(node_index), @intCast(node_index));
+        try self.propagateRefBitVectorsToCallers(@intCast(node_index), proc_parent_node);
     }
     for (self.ast.nodes, 0..) |node, node_index| {
         if (node.type == .CALL) {
             const proc_node_index = self.ast.proc_map.get(node.value_id_or_const).node_index;
 
-            var parent_index = self.ast.findParent(@intCast(node_index));
-            var parent_node = self.ast.nodes[parent_index];
-            while (parent_node.type != .PROCEDURE) {
-                if (parent_node.type == .IF or parent_node.type == .WHILE) {
-                    self.setModifiesBitVector(proc_node_index, parent_index);
-                    self.setUsesBitVector(proc_node_index, parent_index);
-                }
-                parent_index = self.ast.findParent(@intCast(parent_index));
-                parent_node = self.ast.nodes[parent_index];
-            }
-
-            const proc_parent_index = parent_index;
-            const proc_parent_node = parent_node;
-            const proc_parent_id = proc_parent_node.value_id_or_const;
-            self.setModifiesBitVector(node_index, proc_parent_index);
-            self.setUsesBitVector(node_index, proc_parent_index);
-
-            var current_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
-                return error.PKB_OUT_OF_MEMORY;
-            defer current_proc_vector.deinit(self.arena_allocator.allocator());
-
-            current_proc_vector.set(proc_parent_id);
-
-            var new_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
-                return error.PKB_OUT_OF_MEMORY;
-            defer current_proc_vector.deinit(self.arena_allocator.allocator());
-
-            while (current_proc_vector.findFirstSet()) |_| {
-                new_proc_vector.unsetAll();
-                for (self.ast.proc_map.map.items, 0..) |*item, proc_id| {
-                    var tmp_proc_vector = current_proc_vector.clone(self.arena_allocator.allocator()) catch
-                        return error.PKB_OUT_OF_MEMORY;
-                    defer tmp_proc_vector.deinit(self.arena_allocator.allocator());
-
-                    tmp_proc_vector.setIntersection(item.calls);
-                    if (tmp_proc_vector.findFirstSet()) |_| {
-                        new_proc_vector.set(proc_id);
-                        self.setModifiesBitVector(node_index, item.node_index);
-                        self.setUsesBitVector(node_index,  item.node_index);
-                    }
-                }
-                std.mem.swap(std.DynamicBitSetUnmanaged, &current_proc_vector, &new_proc_vector);
-            }
-            
-            // self.recursivelySetVectorsForCallers(node.value_id_or_const, node_index);
+            const proc_parent_node = self.propagateRefBitVectorsToParents(@intCast(node_index), proc_node_index);
+            try self.propagateRefBitVectorsToCallers(@intCast(proc_node_index), proc_parent_node);
         }
+    }
+}
+
+fn propagateRefBitVectorsToParents(self: *Self, node_index: u32, src_node_index: u32) Node {
+    var parent_index = self.ast.findParent(@intCast(node_index));
+    var parent_node = self.ast.nodes[parent_index];
+    while (true) {
+        if (parent_node.type == .PROCEDURE or parent_node.type == .IF or parent_node.type == .WHILE) {
+            self.setModifiesBitVector(src_node_index, parent_index);
+            self.setUsesBitVector(src_node_index, parent_index);
+        }
+        if (parent_node.type == .PROCEDURE) {
+            break;
+        }
+        parent_index = self.ast.findParent(@intCast(parent_index));
+        parent_node = self.ast.nodes[parent_index];
+    }
+    return parent_node;
+}
+fn propagateRefBitVectorsToCallers(self: *Self, src_node_index: u32, proc_parent_node: Node) !void {
+    const proc_parent_id = proc_parent_node.value_id_or_const;
+
+    var current_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
+        return error.PKB_OUT_OF_MEMORY;
+    defer current_proc_vector.deinit(self.arena_allocator.allocator());
+
+    current_proc_vector.set(proc_parent_id);
+
+    var new_proc_vector = std.DynamicBitSetUnmanaged.initEmpty(self.arena_allocator.allocator(), self.ast.proc_table.size()) catch
+        return error.PKB_OUT_OF_MEMORY;
+    defer current_proc_vector.deinit(self.arena_allocator.allocator());
+
+    while (current_proc_vector.findFirstSet()) |_| {
+        new_proc_vector.unsetAll();
+        for (self.ast.proc_map.map.items, 0..) |*item, proc_id| {
+            var tmp_proc_vector = current_proc_vector.clone(self.arena_allocator.allocator()) catch
+                return error.PKB_OUT_OF_MEMORY;
+            defer tmp_proc_vector.deinit(self.arena_allocator.allocator());
+
+            tmp_proc_vector.setIntersection(item.calls);
+            if (tmp_proc_vector.findFirstSet()) |_| {
+                new_proc_vector.set(proc_id);
+                self.setModifiesBitVector(src_node_index, item.node_index);
+                self.setUsesBitVector(src_node_index,  item.node_index);
+            }
+        }
+        std.mem.swap(std.DynamicBitSetUnmanaged, &current_proc_vector, &new_proc_vector);
     }
 }
 

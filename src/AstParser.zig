@@ -77,14 +77,6 @@ pub fn init(internal_allocator: std.mem.Allocator, tokens: []Token, err_log_writ
     return self;
 }
 
-fn validate(ast: *AST) Error!void {
-    for (ast.nodes) |node| {
-        if (node.type == .CALL and !ast.proc_map.exists(node.value_id_or_const)) {
-            return error.CALLED_NULL_PROC;
-        }
-    }
-}
-
 fn onError(self: *Self, message: []const u8) void {
     if (self.getCurrentToken().metadata) |token_metadata| {
         const line_until_column = token_metadata.line[0..@intCast(token_metadata.column_no)];
@@ -468,9 +460,12 @@ pub fn parse(self: *Self) Error!*AST {
     }
 
     // fill out proc map (lvl 1 is filled only with procedures)
+    if (self.levels.items[0].items.len < self.proc_table.table.items.len) {
+        return error.CALLED_NULL_PROC;
+    }
     try self.proc_map.resize(self.levels.items[0].items.len);
-    for (0..(self.levels.items[0].items.len)) |i| {
-        try self.proc_map.add(@intCast(i), @intCast(i+1));
+    for (self.levels.items[0].items, 1..) |*node, i| {
+        try self.proc_map.add(node.value_id_or_const, @intCast(i));
     }
 
     var ast = AST.init(
@@ -528,10 +523,6 @@ pub fn parse(self: *Self) Error!*AST {
             i_nodes += 1;
         }
     }
-
-    try validate(ast);
-
-    ast.buildCallsProcMap();
 
     return ast;
 }

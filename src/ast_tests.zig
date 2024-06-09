@@ -659,7 +659,8 @@ test "calls*" {
     \\          call Third;
     \\          i = i - 1;
     \\          if c then { 
-    \\              i = 1; 
+    \\              i = 1;
+    \\              while x { while y { while z { call Fifth; } } }
     \\          } else {
     \\              y = 2 + n;
     \\          }
@@ -676,9 +677,28 @@ test "calls*" {
     \\}
     \\procedure First {
     \\    call Fourth;
+    \\    call Fifth;
     \\}
     \\procedure Fourth {
     \\  j = 1 + k;
+    \\}
+    \\procedure Fifth {
+    \\  call Fourth;
+    \\  while pct {
+    \\    while asterick {
+    \\      range = dx - dy + range;
+    \\      if range then {
+    \\        peak = marking - y2 * mean;
+    \\        marking = marking - 1; }
+    \\      else {
+    \\        pct = 0;
+    \\        trim = 0; }
+    \\      range = range + 1; }
+    \\      if pct then {
+    \\        pct = 0; }
+    \\      else {
+    \\        asterick = x1 * x1 + y1 * x2; }
+    \\    pct = pct - 1; }
     \\}
     ;
 
@@ -702,6 +722,10 @@ test "calls*" {
 
     try checkExecuteCalls(pkb, api.callsTransitive, &result_buffer_stream, .{ .proc_name = "First" }, .{ .proc_name = "Fourth" }, 1);
     try checkResult(pkb, result_buffer[0..4], 1, false);
+
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(3)) }, "y2", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(5)) }, "y2", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(9)) }, "y2", 1);
 }
 
 
@@ -1112,13 +1136,16 @@ test "custom" {
 
     try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(107)) }, "x", 1);
     try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(34)) }, "y2", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = 8 }, "y2", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = 1 }, "y2", 1);
+    try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = @intCast(pkb.ast.findStatement(86)) }, "y2", 1);
     // try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = 414 }, "y2", 1);
 
 
-    // try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = common.NODE_SELECTED }, null, 275);
+    //try checkExecuteUsesModifies(pkb, api.uses, &result_buffer_stream, .{ .node_id = common.NODE_SELECTED }, null, 240);
 
     //var result: [4]u8 = .{0} ** 4;
-    //for (0..275) |i| {
+    //for (0..240) |i| {
     //    std.mem.copyForwards(u8, result[0..], result_buffer[i*4..(i+1)*4]);
     //    const num = std.mem.readInt(u32, &result, .little);
     //    if (pkb.ast.nodes[num].type == .IF) {
